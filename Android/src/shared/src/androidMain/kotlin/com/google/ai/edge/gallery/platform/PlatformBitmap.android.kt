@@ -16,4 +16,9 @@
 
 package com.google.ai.edge.gallery.platform
 
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+
 actual typealias PlatformBitmap = android.graphics.Bitmap
+
+actual fun PlatformBitmap.toImageBitmap(): ImageBitmap = this.asImageBitmap()

@@ -74,7 +74,7 @@ fun ModelSelector(
         ModelItem(
           model = model,
           task = task,
-          modelManagerViewModel = modelManagerViewModel,
+          modelManagerActions = modelManagerViewModel,
           onModelClicked = {},
           onBenchmarkClicked = {},
           modifier = Modifier.weight(1f).padding(horizontal = 16.dp),

@@ -16,7 +16,27 @@
 
 package com.google.ai.edge.gallery.platform
 
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
+import org.jetbrains.skia.Image
+import platform.Foundation.NSData
 import platform.UIKit.UIImage
+import platform.UIKit.UIImagePNGRepresentation
+import platform.posix.memcpy
 
 /** iOS bitmap type wrapping UIImage. */
 actual class PlatformBitmap(val uiImage: UIImage)
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun PlatformBitmap.toImageBitmap(): ImageBitmap {
+  val data: NSData = UIImagePNGRepresentation(uiImage)
+    ?: throw IllegalStateException("Failed to convert UIImage to PNG data")
+  val bytes = ByteArray(data.length.toInt())
+  bytes.usePinned { pinned ->
+    memcpy(pinned.addressOf(0), data.bytes, data.length)
+  }
+  return Image.makeFromEncoded(bytes).toComposeImageBitmap()
+}

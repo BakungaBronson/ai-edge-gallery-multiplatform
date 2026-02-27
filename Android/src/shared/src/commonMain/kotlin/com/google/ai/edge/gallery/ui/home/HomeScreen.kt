@@ -16,16 +16,11 @@
 
 package com.google.ai.edge.gallery.ui.home
 
-// import androidx.compose.ui.tooling.preview.Preview
-// import com.google.ai.edge.gallery.ui.theme.GalleryTheme
-// import com.google.ai.edge.gallery.ui.preview.PreviewModelManagerViewModel
-import android.content.Context
-import androidx.activity.compose.BackHandler
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -82,36 +77,48 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Brush.Companion.linearGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
-import com.google.ai.edge.gallery.GalleryTopAppBar
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.AppBarAction
 import com.google.ai.edge.gallery.data.AppBarActionType
 import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.CategoryInfo
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.platform.PlatformBackHandler
+import com.google.ai.edge.gallery.shared.resources.Res
+import com.google.ai.edge.gallery.shared.resources.app_intro
+import com.google.ai.edge.gallery.shared.resources.app_name
+import com.google.ai.edge.gallery.shared.resources.app_name_first_part
+import com.google.ai.edge.gallery.shared.resources.app_name_second_part
+import com.google.ai.edge.gallery.shared.resources.cd_error
+import com.google.ai.edge.gallery.shared.resources.cd_task_card
+import com.google.ai.edge.gallery.shared.resources.drawer_models_description
+import com.google.ai.edge.gallery.shared.resources.drawer_models_label
+import com.google.ai.edge.gallery.shared.resources.drawer_settings_description
+import com.google.ai.edge.gallery.shared.resources.drawer_settings_label
+import com.google.ai.edge.gallery.shared.resources.ic_experiment
+import com.google.ai.edge.gallery.shared.resources.litert_community_label
+import com.google.ai.edge.gallery.shared.resources.loading_model_list
+import com.google.ai.edge.gallery.ui.GalleryTopAppBar
 import com.google.ai.edge.gallery.ui.common.RevealingText
 import com.google.ai.edge.gallery.ui.common.SwipingText
 import com.google.ai.edge.gallery.ui.common.TaskIcon
 import com.google.ai.edge.gallery.ui.common.buildTrackableUrlAnnotatedString
 import com.google.ai.edge.gallery.ui.common.rememberDelayedAnimationProgress
 import com.google.ai.edge.gallery.ui.common.tos.AppTosDialog
-import com.google.ai.edge.gallery.ui.common.tos.TosViewModel
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.common.tos.TosActions
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
 import com.google.ai.edge.gallery.ui.theme.customColors
 import com.google.ai.edge.gallery.ui.theme.homePageTitleStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 
 private const val TAG = "AGHomeScreen"
 private const val TASK_COUNT_ANIMATION_DURATION = 250
@@ -130,7 +137,7 @@ private const val CONTENT_COMPOSABLES_OFFSET_Y = 16
 
 /** Navigation destination data */
 object HomeScreenDestination {
-  @StringRes val titleRes = R.string.app_name
+  val title: String = "Google AI Edge Gallery"
 }
 
 private val PREDEFINED_CATEGORY_ORDER = listOf(Category.LLM.id, Category.EXPERIMENTAL.id)
@@ -138,18 +145,18 @@ private val PREDEFINED_CATEGORY_ORDER = listOf(Category.LLM.id, Category.EXPERIM
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-  modelManagerViewModel: ModelManagerViewModel,
-  tosViewModel: TosViewModel,
+  modelManagerActions: ModelManagerActions,
+  tosActions: TosActions,
   navigateToTaskScreen: (Task) -> Unit,
   onModelsClicked: () -> Unit,
   enableAnimation: Boolean,
   modifier: Modifier = Modifier,
+  settingsDialog: @Composable ((onDismiss: () -> Unit) -> Unit)? = null,
 ) {
-  val uiState by modelManagerViewModel.uiState.collectAsState()
+  val uiState by modelManagerActions.uiState.collectAsState()
   var showSettingsDialog by remember { mutableStateOf(false) }
-  var showTosDialog by remember { mutableStateOf(!tosViewModel.getIsTosAccepted()) }
+  var showTosDialog by remember { mutableStateOf(!tosActions.getIsTosAccepted()) }
   val scope = rememberCoroutineScope()
-  val context = LocalContext.current
 
   val tasks = uiState.tasks
   val categoryMap: Map<String, CategoryInfo> =
@@ -177,8 +184,8 @@ fun HomeScreen(
           else {
             val ca = categoryMap[a]!!
             val cb = categoryMap[b]!!
-            val caLabel = getCategoryLabel(context = context, category = ca)
-            val cbLabel = getCategoryLabel(context = context, category = cb)
+            val caLabel = getCategoryLabel(category = ca)
+            val cbLabel = getCategoryLabel(category = cb)
             caLabel.compareTo(cbLabel)
           }
         }
@@ -223,7 +230,7 @@ fun HomeScreen(
           modifier = Modifier.padding(end = 8.dp).size(20.dp),
         )
         Text(
-          stringResource(R.string.loading_model_list),
+          stringResource(Res.string.loading_model_list),
           style = MaterialTheme.typography.bodyMedium,
         )
       }
@@ -233,7 +240,7 @@ fun HomeScreen(
       val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
       // Close the menu when back button is pressed.
-      BackHandler(drawerState.isOpen) { scope.launch { drawerState.close() } }
+      PlatformBackHandler(drawerState.isOpen) { scope.launch { drawerState.close() } }
 
       ModalNavigationDrawer(
         drawerState = drawerState,
@@ -242,8 +249,8 @@ fun HomeScreen(
             Column(modifier = Modifier.padding(16.dp)) {
               Row(modifier = Modifier.fillMaxWidth()) {
                 SquareDrawerItem(
-                  label = stringResource(R.string.drawer_settings_label),
-                  description = stringResource(R.string.drawer_settings_description),
+                  label = stringResource(Res.string.drawer_settings_label),
+                  description = stringResource(Res.string.drawer_settings_description),
                   icon = Icons.Rounded.Settings,
                   onClick = {
                     showSettingsDialog = true
@@ -261,8 +268,8 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 SquareDrawerItem(
-                  label = stringResource(R.string.drawer_models_label),
-                  description = stringResource(R.string.drawer_models_description),
+                  label = stringResource(Res.string.drawer_models_label),
+                  description = stringResource(Res.string.drawer_models_description),
                   icon = Icons.AutoMirrored.Rounded.ListAlt,
                   onClick = {
                     scope.launch { drawerState.close() }
@@ -309,7 +316,7 @@ fun HomeScreen(
                 }
             ) {
               GalleryTopAppBar(
-                title = stringResource(HomeScreenDestination.titleRes),
+                title = stringResource(Res.string.app_name),
                 leftAction =
                   AppBarAction(
                     actionType = AppBarActionType.MENU,
@@ -403,18 +410,14 @@ fun HomeScreen(
     AppTosDialog(
       onTosAccepted = {
         showTosDialog = false
-        tosViewModel.acceptTos()
+        tosActions.acceptTos()
       }
     )
   }
 
-  // Settings dialog.
-  if (showSettingsDialog) {
-    SettingsDialog(
-      curThemeOverride = modelManagerViewModel.readThemeOverride(),
-      modelManagerViewModel = modelManagerViewModel,
-      onDismissed = { showSettingsDialog = false },
-    )
+  // Settings dialog (provided by platform).
+  if (showSettingsDialog && settingsDialog != null) {
+    settingsDialog { showSettingsDialog = false }
   }
 
   if (uiState.loadingModelAllowlistError.isNotEmpty()) {
@@ -422,18 +425,18 @@ fun HomeScreen(
       icon = {
         Icon(
           Icons.Rounded.Error,
-          contentDescription = stringResource(R.string.cd_error),
+          contentDescription = stringResource(Res.string.cd_error),
           tint = MaterialTheme.colorScheme.error,
         )
       },
       title = { Text(uiState.loadingModelAllowlistError) },
       text = { Text("Please check your internet connection and try again later.") },
-      onDismissRequest = { modelManagerViewModel.loadModelAllowlist() },
+      onDismissRequest = { modelManagerActions.loadModelAllowlist() },
       confirmButton = {
-        TextButton(onClick = { modelManagerViewModel.loadModelAllowlist() }) { Text("Retry") }
+        TextButton(onClick = { modelManagerActions.loadModelAllowlist() }) { Text("Retry") }
       },
       dismissButton = {
-        TextButton(onClick = { modelManagerViewModel.clearLoadModelAllowlistError() }) {
+        TextButton(onClick = { modelManagerActions.clearLoadModelAllowlistError() }) {
           Text("Cancel")
         }
       },
@@ -443,84 +446,88 @@ fun HomeScreen(
 
 @Composable
 private fun AppTitle(enableAnimation: Boolean) {
-  val firstLineText = stringResource(R.string.app_name_first_part)
-  val secondLineText = stringResource(R.string.app_name_second_part)
+  val firstLineText = stringResource(Res.string.app_name_first_part)
+  val secondLineText = stringResource(Res.string.app_name_second_part)
   val titleColor = MaterialTheme.customColors.appTitleGradientColors[1]
-  val screenWidthInDp = LocalConfiguration.current.screenWidthDp.dp
-  val fontSize = with(LocalDensity.current) { (screenWidthInDp.toPx() * 0.12f).toSp() }
-  val titleStyle = homePageTitleStyle().copy(fontSize = fontSize, lineHeight = fontSize)
 
-  // First line text "Google AI" and its animation.
-  //
-  // The animation starts with the first line of text swiping in from left to right, progressively
-  // revealing itself in the title color (blue). Then, after a brief delay, the exact same text, but
-  // in the onSurface color (which is black in light mode), begins its own left-to-right swiping
-  // animation. This second animation is positioned directly on top of the first, appearing just as
-  // the initial reveal is finishing or has just completed, creating a layered and dynamic visual
-  // effect.
-  Box(modifier = Modifier.clearAndSetSemantics {}) {
-    var delay = ANIMATION_INIT_DELAY
-    if (enableAnimation) {
-      SwipingText(
-        text = firstLineText,
-        style = titleStyle,
-        color = titleColor,
-        animationDelay = delay,
-        animationDurationMs = TITLE_FIRST_LINE_ANIMATION_DURATION,
-      )
-      delay += (TITLE_FIRST_LINE_ANIMATION_DURATION * 0.3).toLong()
+  BoxWithConstraints {
+    val screenWidthInDp = maxWidth
+    val fontSize = with(LocalDensity.current) { (screenWidthInDp.toPx() * 0.12f).toSp() }
+    val titleStyle = homePageTitleStyle().copy(fontSize = fontSize, lineHeight = fontSize)
+
+    Column {
+      // First line text "Google AI" and its animation.
+      //
+      // The animation starts with the first line of text swiping in from left to right, progressively
+      // revealing itself in the title color (blue). Then, after a brief delay, the exact same text, but
+      // in the onSurface color (which is black in light mode), begins its own left-to-right swiping
+      // animation. This second animation is positioned directly on top of the first, appearing just as
+      // the initial reveal is finishing or has just completed, creating a layered and dynamic visual
+      // effect.
+      Box(modifier = Modifier.clearAndSetSemantics {}) {
+        var delay = ANIMATION_INIT_DELAY
+        if (enableAnimation) {
+          SwipingText(
+            text = firstLineText,
+            style = titleStyle,
+            color = titleColor,
+            animationDelay = delay,
+            animationDurationMs = TITLE_FIRST_LINE_ANIMATION_DURATION,
+          )
+          delay += (TITLE_FIRST_LINE_ANIMATION_DURATION * 0.3).toLong()
+        }
+        SwipingText(
+          text = firstLineText,
+          style = titleStyle,
+          color = MaterialTheme.colorScheme.onSurface,
+          animationDelay = if (enableAnimation) delay else 0,
+          animationDurationMs = if (enableAnimation) TITLE_FIRST_LINE_ANIMATION_DURATION else 0,
+        )
+      }
+      // Second line text "Edge Gallery" and its animation.
+      //
+      // The initial animation is the same as the first line text. Right before it is done, the final
+      // text with a gradient is revealed.
+      Box(modifier = Modifier.clearAndSetSemantics {}) {
+        var delay = TITLE_SECOND_LINE_ANIMATION_START
+        if (enableAnimation) {
+          SwipingText(
+            text = secondLineText,
+            style = titleStyle,
+            color = titleColor,
+            modifier = Modifier.offset(y = (-16).dp),
+            animationDelay = delay,
+            animationDurationMs = TITLE_SECOND_LINE_ANIMATION_DURATION,
+          )
+          delay += (TITLE_SECOND_LINE_ANIMATION_DURATION * 0.3).toInt()
+          SwipingText(
+            text = secondLineText,
+            style = titleStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.offset(y = (-16).dp),
+            animationDelay = delay,
+            animationDurationMs = TITLE_SECOND_LINE_ANIMATION_DURATION,
+          )
+          delay += (TITLE_SECOND_LINE_ANIMATION_DURATION * 0.6).toInt()
+        }
+        RevealingText(
+          text = secondLineText,
+          style =
+            titleStyle.copy(
+              brush = linearGradient(colors = MaterialTheme.customColors.appTitleGradientColors)
+            ),
+          modifier = Modifier.offset(x = (-16).dp, y = (-16).dp),
+          animationDelay = if (enableAnimation) delay else 0,
+          animationDurationMs = if (enableAnimation) TITLE_SECOND_LINE_ANIMATION_DURATION2 else 0,
+        )
+      }
     }
-    SwipingText(
-      text = firstLineText,
-      style = titleStyle,
-      color = MaterialTheme.colorScheme.onSurface,
-      animationDelay = if (enableAnimation) delay else 0,
-      animationDurationMs = if (enableAnimation) TITLE_FIRST_LINE_ANIMATION_DURATION else 0,
-    )
-  }
-  // Second line text "Edge Gallery" and its animation.
-  //
-  // The initial animation is the same as the first line text. Right before it is done, the final
-  // text with a gradient is revealed.
-  Box(modifier = Modifier.clearAndSetSemantics {}) {
-    var delay = TITLE_SECOND_LINE_ANIMATION_START
-    if (enableAnimation) {
-      SwipingText(
-        text = secondLineText,
-        style = titleStyle,
-        color = titleColor,
-        modifier = Modifier.offset(y = (-16).dp),
-        animationDelay = delay,
-        animationDurationMs = TITLE_SECOND_LINE_ANIMATION_DURATION,
-      )
-      delay += (TITLE_SECOND_LINE_ANIMATION_DURATION * 0.3).toInt()
-      SwipingText(
-        text = secondLineText,
-        style = titleStyle,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.offset(y = (-16).dp),
-        animationDelay = delay,
-        animationDurationMs = TITLE_SECOND_LINE_ANIMATION_DURATION,
-      )
-      delay += (TITLE_SECOND_LINE_ANIMATION_DURATION * 0.6).toInt()
-    }
-    RevealingText(
-      text = secondLineText,
-      style =
-        titleStyle.copy(
-          brush = linearGradient(colors = MaterialTheme.customColors.appTitleGradientColors)
-        ),
-      modifier = Modifier.offset(x = (-16).dp, y = (-16).dp),
-      animationDelay = if (enableAnimation) delay else 0,
-      animationDurationMs = if (enableAnimation) TITLE_SECOND_LINE_ANIMATION_DURATION2 else 0,
-    )
   }
 }
 
 @Composable
 private fun IntroText(enableAnimation: Boolean) {
   val url = "https://huggingface.co/litert-community"
-  val linkColor = MaterialTheme.customColors.linkColor
   val uriHandler = LocalUriHandler.current
 
   // Intro text animation:
@@ -536,11 +543,11 @@ private fun IntroText(enableAnimation: Boolean) {
       )
 
   val introText = buildAnnotatedString {
-    append("${stringResource(R.string.app_intro)} ")
+    append("${stringResource(Res.string.app_intro)} ")
     append(
       buildTrackableUrlAnnotatedString(
         url = url,
-        linkText = stringResource(R.string.litert_community_label),
+        linkText = stringResource(Res.string.litert_community_label),
       )
     )
   }
@@ -562,7 +569,6 @@ private fun CategoryTabHeader(
   enableAnimation: Boolean,
   onCategorySelected: (Int) -> Unit,
 ) {
-  val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val listState = rememberLazyListState()
 
@@ -619,7 +625,7 @@ private fun CategoryTabHeader(
         horizontalArrangement = Arrangement.Center,
       ) {
         Text(
-          getCategoryLabel(context = context, category = category),
+          getCategoryLabel(category = category),
           modifier = Modifier.padding(horizontal = 16.dp),
           style = MaterialTheme.typography.labelLarge,
           color =
@@ -745,7 +751,7 @@ private fun TaskCard(
       )
     else 1f
 
-  val cbTask = stringResource(R.string.cd_task_card, task.label, task.models.size)
+  val cbTask = stringResource(Res.string.cd_task_card, task.label, task.models.size)
   Card(
     modifier =
       modifier
@@ -770,7 +776,7 @@ private fun TaskCard(
           )
           if (task.experimental) {
             Icon(
-              painter = painterResource(R.drawable.ic_experiment),
+              painter = painterResource(Res.drawable.ic_experiment),
               contentDescription = "Experimental",
               modifier = Modifier.size(20.dp).padding(start = 4.dp),
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -791,10 +797,10 @@ private fun TaskCard(
   }
 }
 
-private fun getCategoryLabel(context: Context, category: CategoryInfo): String {
+private fun getCategoryLabel(category: CategoryInfo): String {
   val label = category.label
   if (label.isNotEmpty()) {
     return label
   }
-  return context.getString(R.string.category_unlabeled)
+  return "Unlabeled"
 }

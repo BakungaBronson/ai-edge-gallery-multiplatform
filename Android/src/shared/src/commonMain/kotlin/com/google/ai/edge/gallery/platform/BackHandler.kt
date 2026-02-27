@@ -16,10 +16,8 @@
 
 package com.google.ai.edge.gallery.platform
 
-import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.runtime.Composable
 
-/** Platform-specific bitmap type. Android: android.graphics.Bitmap, iOS: UIImage. */
-expect class PlatformBitmap
-
-/** Convert a platform bitmap to a Compose ImageBitmap for display. */
-expect fun PlatformBitmap.toImageBitmap(): ImageBitmap
+/** Platform-specific back button handler. No-op on platforms without a system back button. */
+@Composable
+expect fun PlatformBackHandler(enabled: Boolean = true, onBack: () -> Unit)

@@ -16,12 +16,6 @@
 
 package com.google.ai.edge.gallery.ui.modelmanager
 
-// import androidx.compose.ui.tooling.preview.Preview
-// import com.google.ai.edge.gallery.ui.preview.PreviewModelManagerViewModel
-// import com.google.ai.edge.gallery.ui.preview.TASK_TEST1
-// import com.google.ai.edge.gallery.ui.theme.GalleryTheme
-
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,15 +46,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.shared.resources.Res
+import com.google.ai.edge.gallery.shared.resources.model_list_experimental_label
+import com.google.ai.edge.gallery.shared.resources.model_list_imported_models_title
+import com.google.ai.edge.gallery.shared.resources.model_list_number_of_models_available
+import com.google.ai.edge.gallery.shared.resources.model_list_recommended_models_title
 import com.google.ai.edge.gallery.ui.common.ClickableLink
 import com.google.ai.edge.gallery.ui.common.RevealingText
 import com.google.ai.edge.gallery.ui.common.TaskIcon
@@ -70,8 +67,9 @@ import com.google.ai.edge.gallery.ui.common.modelitem.ModelItem
 import com.google.ai.edge.gallery.ui.common.rememberDelayedAnimationProgress
 import com.google.ai.edge.gallery.ui.theme.bodyLargeNarrow
 import com.google.ai.edge.gallery.ui.theme.headlineLargeMedium
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
-private const val TAG = "AGModelList"
 private val CONTENT_ANIMATION_OFFSET = 16.dp
 private const val ANIMATION_INIT_DELAY = 80L
 private const val TASK_DESCRIPTION_SECTION_ANIMATION_START = 400
@@ -83,7 +81,7 @@ private const val TASK_ICON_ANIMATION_DURATION = 1100
 @Composable
 fun ModelList(
   task: Task,
-  modelManagerViewModel: ModelManagerViewModel,
+  modelManagerActions: ModelManagerActions,
   contentPadding: PaddingValues,
   enableAnimation: Boolean,
   onModelClicked: (Model) -> Unit,
@@ -202,7 +200,7 @@ fun ModelList(
           if (task.experimental) {
             Box(modifier = Modifier.fillMaxWidth()) {
               Surface(
-                shape = CircleShape, // This creates the "pill" effect
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 modifier =
                   Modifier.align(Alignment.Center).graphicsLayer {
@@ -211,7 +209,7 @@ fun ModelList(
                   },
               ) {
                 Text(
-                  text = stringResource(R.string.model_list_experimental_label),
+                  text = stringResource(Res.string.model_list_experimental_label),
                   style = bodyLargeNarrow.copy(fontWeight = FontWeight.Bold),
                   modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
@@ -263,12 +261,12 @@ fun ModelList(
           }
 
           // Models available.
-          val resources = LocalContext.current.resources
+          val totalModels = models.size + importedModels.size
           Text(
-            resources.getQuantityString(
-              R.plurals.model_list_number_of_models_available,
-              models.size + importedModels.size,
-              models.size + importedModels.size,
+            pluralStringResource(
+              Res.plurals.model_list_number_of_models_available,
+              totalModels,
+              totalModels,
             ),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyMedium,
@@ -285,7 +283,7 @@ fun ModelList(
       if (!models.isEmpty())
         item(key = "recommendedModelsTitle") {
           Text(
-            stringResource(R.string.model_list_recommended_models_title),
+            stringResource(Res.string.model_list_recommended_models_title),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.labelLarge,
             modifier =
@@ -302,7 +300,7 @@ fun ModelList(
         ModelItem(
           model = model,
           task = task,
-          modelManagerViewModel = modelManagerViewModel,
+          modelManagerActions = modelManagerActions,
           onModelClicked = onModelClicked,
           onBenchmarkClicked = onBenchmarkClicked,
           expanded = expanded,
@@ -319,7 +317,7 @@ fun ModelList(
       if (importedModels.isNotEmpty()) {
         item(key = "importedModelsTitle") {
           Text(
-            stringResource(R.string.model_list_imported_models_title),
+            stringResource(Res.string.model_list_imported_models_title),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.labelLarge,
             modifier =
@@ -339,7 +337,7 @@ fun ModelList(
           ModelItem(
             model = model,
             task = task,
-            modelManagerViewModel = modelManagerViewModel,
+            modelManagerActions = modelManagerActions,
             onModelClicked = onModelClicked,
             onBenchmarkClicked = onBenchmarkClicked,
             modifier =
@@ -366,18 +364,3 @@ fun ModelList(
     )
   }
 }
-
-// @Preview(showBackground = true)
-// @Composable
-// fun ModelListPreview() {
-//   val context = LocalContext.current
-
-//   GalleryTheme {
-//     ModelList(
-//       task = TASK_TEST1,
-//       modelManagerViewModel = PreviewModelManagerViewModel(context = context),
-//       onModelClicked = {},
-//       contentPadding = PaddingValues(all = 16.dp),
-//     )
-//   }
-// }

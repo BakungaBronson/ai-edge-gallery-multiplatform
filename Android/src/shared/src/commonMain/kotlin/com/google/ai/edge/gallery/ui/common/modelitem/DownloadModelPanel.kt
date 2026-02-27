@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material3.Button
@@ -37,23 +36,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatus
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.shared.resources.Res
+import com.google.ai.edge.gallery.shared.resources.benchmark
 import com.google.ai.edge.gallery.ui.common.DownloadAndTryButton
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DownloadModelPanel(
   model: Model,
   task: Task?,
-  modelManagerViewModel: ModelManagerViewModel,
+  modelManagerActions: ModelManagerActions,
   downloadStatus: ModelDownloadStatus?,
   isExpanded: Boolean,
   sharedTransitionScope: SharedTransitionScope,
@@ -99,12 +98,10 @@ fun DownloadModelPanel(
 
             if (isExpanded) {
               Text(
-                stringResource(R.string.benchmark),
+                stringResource(Res.string.benchmark),
                 color = textColor,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
-                autoSize =
-                  TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 16.sp, stepSize = 1.sp),
               )
             }
           }
@@ -118,7 +115,7 @@ fun DownloadModelPanel(
         model = model,
         downloadStatus = downloadStatus,
         enabled = true,
-        modelManagerViewModel = modelManagerViewModel,
+        modelManagerActions = modelManagerActions,
         onClicked = onTryItClicked,
         compact = !isExpanded,
         modifier =

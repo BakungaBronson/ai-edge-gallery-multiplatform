@@ -166,7 +166,7 @@ fun LlmSingleTurnScreen(
         ModelDownloadStatusInfoPanel(
           model = selectedModel,
           task = task,
-          modelManagerViewModel = modelManagerViewModel,
+          modelManagerActions = modelManagerViewModel,
         )
       }
 

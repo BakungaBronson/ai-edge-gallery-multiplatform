@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.platform
 
+import io.github.aakira.napier.Napier
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.datetime.Clock
 import platform.Foundation.NSCachesDirectory
@@ -58,7 +59,7 @@ actual fun currentTimeMillis(): Long {
 }
 
 actual fun logAnalyticsEvent(eventName: String, params: Map<String, String>) {
-  // No-op on iOS. Can be implemented with Firebase iOS SDK later.
+  Napier.d(tag = "Analytics") { "Event: $eventName, params: $params" }
 }
 
 actual fun currentPlatform(): AppPlatform = AppPlatform.IOS

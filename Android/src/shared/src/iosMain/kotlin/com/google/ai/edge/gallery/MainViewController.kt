@@ -16,54 +16,30 @@
 
 package com.google.ai.edge.gallery
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
+import androidx.navigation.compose.rememberNavController
+import com.google.ai.edge.gallery.ui.common.tos.TosActions
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
+import com.google.ai.edge.gallery.ui.navigation.GalleryNavHost
+import com.google.ai.edge.gallery.ui.navigation.GalleryScreenProvider
 import com.google.ai.edge.gallery.ui.theme.GalleryTheme
+import org.koin.mp.KoinPlatform.getKoin
 
 /** Creates the main UIViewController hosting the Compose Multiplatform UI. */
 fun MainViewController() = ComposeUIViewController {
-  GalleryTheme {
-    Surface(modifier = Modifier.fillMaxSize()) {
-      IosAppContent()
-    }
-  }
-}
+  val koin = remember { getKoin() }
+  val modelManagerActions = remember { koin.get<ModelManagerActions>() }
+  val tosActions = remember { koin.get<TosActions>() }
+  val screenProvider = remember { koin.get<GalleryScreenProvider>() }
 
-@Composable
-private fun IosAppContent() {
-  Column(
-    modifier = Modifier.fillMaxSize().padding(24.dp),
-    verticalArrangement = Arrangement.Center,
-    horizontalAlignment = Alignment.CenterHorizontally,
-  ) {
-    Text(
-      text = "AI Edge Gallery",
-      style = MaterialTheme.typography.headlineLarge,
-      color = MaterialTheme.colorScheme.primary,
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    Text(
-      text = "iOS",
-      style = MaterialTheme.typography.titleMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(modifier = Modifier.height(24.dp))
-    Text(
-      text = "Shared UI framework loaded successfully.",
-      style = MaterialTheme.typography.bodyLarge,
-      color = MaterialTheme.colorScheme.onSurface,
+  GalleryTheme {
+    val navController = rememberNavController()
+    GalleryNavHost(
+      navController = navController,
+      modelManagerActions = modelManagerActions,
+      tosActions = tosActions,
+      screenProvider = screenProvider,
     )
   }
 }

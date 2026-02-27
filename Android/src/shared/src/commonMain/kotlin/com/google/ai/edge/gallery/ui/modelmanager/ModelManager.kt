@@ -16,12 +16,6 @@
 
 package com.google.ai.edge.gallery.ui.modelmanager
 
-// import androidx.compose.ui.tooling.preview.Preview
-// import com.google.ai.edge.gallery.ui.preview.PreviewModelManagerViewModel
-// import com.google.ai.edge.gallery.ui.preview.TASK_TEST1
-// import com.google.ai.edge.gallery.ui.theme.GalleryTheme
-
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
@@ -31,18 +25,19 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import com.google.ai.edge.gallery.GalleryTopAppBar
 import com.google.ai.edge.gallery.data.AppBarAction
 import com.google.ai.edge.gallery.data.AppBarActionType
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.platform.PlatformBackHandler
+import com.google.ai.edge.gallery.ui.GalleryTopAppBar
 
 /** A screen to manage models. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelManager(
   task: Task,
-  viewModel: ModelManagerViewModel,
+  modelManagerActions: ModelManagerActions,
   enableAnimation: Boolean,
   navigateUp: () -> Unit,
   onModelClicked: (Model) -> Unit,
@@ -70,7 +65,7 @@ fun ModelManager(
   }
 
   // Handle system's edge swipe.
-  BackHandler { navigateUp() }
+  PlatformBackHandler { navigateUp() }
 
   Scaffold(
     modifier = modifier,
@@ -83,7 +78,7 @@ fun ModelManager(
   ) { innerPadding ->
     ModelList(
       task = task,
-      modelManagerViewModel = viewModel,
+      modelManagerActions = modelManagerActions,
       contentPadding = innerPadding,
       enableAnimation = enableAnimation,
       onModelClicked = onModelClicked,
@@ -92,18 +87,3 @@ fun ModelManager(
     )
   }
 }
-
-// @Preview
-// @Composable
-// fun ModelManagerPreview() {
-//   val context = LocalContext.current
-
-//   GalleryTheme {
-//     ModelManager(
-//       viewModel = PreviewModelManagerViewModel(context = context),
-//       onModelClicked = {},
-//       task = TASK_TEST1,
-//       navigateUp = {},
-//     )
-//   }
-// }

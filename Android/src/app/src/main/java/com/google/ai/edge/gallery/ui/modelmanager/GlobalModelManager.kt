@@ -247,7 +247,7 @@ fun GlobalModelManager(
           ModelItem(
             model = model,
             task = null,
-            modelManagerViewModel = viewModel,
+            modelManagerActions = viewModel,
             onModelClicked = handleClickModel,
             onBenchmarkClicked = onBenchmarkClicked,
             expanded = expanded,
@@ -271,7 +271,7 @@ fun GlobalModelManager(
           ModelItem(
             model = model,
             task = null,
-            modelManagerViewModel = viewModel,
+            modelManagerActions = viewModel,
             onModelClicked = handleClickModel,
             onBenchmarkClicked = onBenchmarkClicked,
             expanded = true,

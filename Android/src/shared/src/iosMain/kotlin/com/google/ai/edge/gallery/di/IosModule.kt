@@ -23,6 +23,12 @@ import com.google.ai.edge.gallery.data.IosDownloadRepository
 import com.google.ai.edge.gallery.inference.IosLlmDelegate
 import com.google.ai.edge.gallery.inference.IosLlmInferenceEngine
 import com.google.ai.edge.gallery.inference.LlmInferenceEngine
+import com.google.ai.edge.gallery.ui.IosModelManagerActions
+import com.google.ai.edge.gallery.ui.IosTosActions
+import com.google.ai.edge.gallery.ui.common.tos.TosActions
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
+import com.google.ai.edge.gallery.ui.navigation.GalleryScreenProvider
+import com.google.ai.edge.gallery.ui.navigation.IosScreenProvider
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -39,6 +45,15 @@ fun initKoinIos(llmDelegate: IosLlmDelegate) {
         single<DataStoreRepository> { IosDataStoreRepository() }
         single<DownloadRepository> { IosDownloadRepository(dataStoreRepository = get()) }
         single<LlmInferenceEngine> { IosLlmInferenceEngine(llmDelegate) }
+        single<ModelManagerActions> {
+          IosModelManagerActions(
+            dataStoreRepository = get(),
+            downloadRepository = get(),
+            llmInferenceEngine = get(),
+          )
+        }
+        single<TosActions> { IosTosActions(dataStoreRepository = get()) }
+        single<GalleryScreenProvider> { IosScreenProvider() }
       }
     )
   }

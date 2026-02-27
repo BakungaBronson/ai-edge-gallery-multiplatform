@@ -228,7 +228,7 @@ fun ChatView(
               ModelDownloadStatusInfoPanel(
                 model = selectedModel,
                 task = task,
-                modelManagerViewModel = modelManagerViewModel,
+                modelManagerActions = modelManagerViewModel,
               )
           }
         }

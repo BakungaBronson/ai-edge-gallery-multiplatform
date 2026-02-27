@@ -17,10 +17,14 @@
 package com.google.ai.edge.gallery
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.google.ai.edge.gallery.ui.common.DownloadAndTryButton
+import com.google.ai.edge.gallery.ui.common.DownloadAndTryButtonDelegate
+import com.google.ai.edge.gallery.ui.common.LocalDownloadAndTryButtonDelegate
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
-import com.google.ai.edge.gallery.ui.navigation.GalleryNavHost
+import com.google.ai.edge.gallery.ui.navigation.AndroidGalleryNavHost
 
 /** Top level composable representing the main screen of the application. */
 @Composable
@@ -28,5 +32,27 @@ fun GalleryApp(
   navController: NavHostController = rememberNavController(),
   modelManagerViewModel: ModelManagerViewModel,
 ) {
-  GalleryNavHost(navController = navController, modelManagerViewModel = modelManagerViewModel)
+  CompositionLocalProvider(
+    LocalDownloadAndTryButtonDelegate provides DownloadAndTryButtonDelegate {
+        task, model, enabled, downloadStatus, _, onClicked, modifier, modifierWhenExpanded, compact, canShowTryIt ->
+      // Delegate to the app's Android-specific DownloadAndTryButton with full OAuth support.
+      DownloadAndTryButton(
+        task = task,
+        model = model,
+        enabled = enabled,
+        downloadStatus = downloadStatus,
+        modelManagerViewModel = modelManagerViewModel,
+        onClicked = onClicked,
+        modifier = modifier,
+        modifierWhenExpanded = modifierWhenExpanded,
+        compact = compact,
+        canShowTryIt = canShowTryIt,
+      )
+    }
+  ) {
+    AndroidGalleryNavHost(
+      navController = navController,
+      modelManagerViewModel = modelManagerViewModel,
+    )
+  }
 }

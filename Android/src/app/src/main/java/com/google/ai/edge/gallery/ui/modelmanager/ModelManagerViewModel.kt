@@ -132,7 +132,7 @@ open class ModelManagerViewModel(
     return uiState.value.tasks.filter { ids.contains(it.id) }
   }
 
-  fun getCustomTaskByTaskId(id: String): CustomTask? {
+  override fun getCustomTaskByTaskId(id: String): CustomTask? {
     return customTasks.find { it.task.id == id }
   }
 
@@ -147,7 +147,7 @@ open class ModelManagerViewModel(
     return null
   }
 
-  fun getAllModels(): List<Model> {
+  override fun getAllModels(): List<Model> {
     val allModels = mutableSetOf<Model>()
     for (task in uiState.value.tasks) {
       for (model in task.models) {
@@ -421,11 +421,11 @@ open class ModelManagerViewModel(
     dataStoreRepository.saveTextInputHistory(_uiState.value.textInputHistory)
   }
 
-  fun readThemeOverride(): AppTheme {
+  override fun readThemeOverride(): AppTheme {
     return dataStoreRepository.readTheme()
   }
 
-  fun saveThemeOverride(theme: AppTheme) {
+  override fun saveThemeOverride(theme: AppTheme) {
     dataStoreRepository.saveTheme(theme = theme)
   }
 
@@ -797,7 +797,7 @@ open class ModelManagerViewModel(
     }
   }
 
-  fun setAppInForeground(foreground: Boolean) {
+  override fun setAppInForeground(foreground: Boolean) {
     lifecycleProvider.isAppInForeground = foreground
   }
 

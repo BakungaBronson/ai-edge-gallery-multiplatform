@@ -39,22 +39,18 @@ import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.common.DownloadAndTryButton
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
 
 @Composable
 fun ModelDownloadStatusInfoPanel(
   model: Model,
   task: Task,
-  modelManagerViewModel: ModelManagerViewModel,
+  modelManagerActions: ModelManagerActions,
 ) {
-  val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
+  val modelManagerUiState by modelManagerActions.uiState.collectAsState()
 
   // Manages the conditional display of UI elements (download model button and downloading
   // animation) based on the corresponding download status.
-  //
-  // It uses delayed visibility ensuring they are shown only after a short delay if their
-  // respective conditions remain true. This prevents UI flickering and provides a smoother
-  // user experience.
   val curStatus = modelManagerUiState.modelDownloadStatus[model.name]
   val downloading =
     curStatus?.status == ModelDownloadStatusType.IN_PROGRESS ||
@@ -76,7 +72,7 @@ fun ModelDownloadStatusInfoPanel(
         ModelDownloadingAnimation(
           model = model,
           task = task,
-          modelManagerViewModel = modelManagerViewModel,
+          modelManagerViewModel = modelManagerActions,
         )
       }
     }
@@ -87,7 +83,7 @@ fun ModelDownloadStatusInfoPanel(
       model = model,
       enabled = true,
       downloadStatus = curStatus,
-      modelManagerViewModel = modelManagerViewModel,
+      modelManagerActions = modelManagerActions,
       modifier = Modifier.padding(horizontal = 32.dp).padding(top = 4.dp, bottom = 16.dp),
       onClicked = {},
       canShowTryIt = false,

@@ -16,14 +16,12 @@
 
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.google.ai.edge.gallery
+package com.google.ai.edge.gallery.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Menu
@@ -40,12 +38,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.ai.edge.gallery.data.AppBarAction
 import com.google.ai.edge.gallery.data.AppBarActionType
+import com.google.ai.edge.gallery.shared.resources.Res
+import com.google.ai.edge.gallery.shared.resources.app_name
+import com.google.ai.edge.gallery.shared.resources.cd_app_settings_icon
+import com.google.ai.edge.gallery.shared.resources.cd_menu
+import com.google.ai.edge.gallery.shared.resources.cd_navigate_back_icon
+import com.google.ai.edge.gallery.shared.resources.logo
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 
 /** The top app bar. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +61,6 @@ fun GalleryTopAppBar(
   scrollBehavior: TopAppBarScrollBehavior? = null,
   subtitle: String = "",
 ) {
-  val titleColor = MaterialTheme.colorScheme.onSurface
   CenterAlignedTopAppBar(
     title = {
       Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -66,21 +68,18 @@ fun GalleryTopAppBar(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-          if (title == stringResource(R.string.app_name)) {
+          if (title == stringResource(Res.string.app_name)) {
             Icon(
-              painterResource(R.drawable.logo),
+              painterResource(Res.drawable.logo),
               modifier = Modifier.size(20.dp),
               contentDescription = null,
               tint = Color.Unspecified,
             )
           }
-          BasicText(
+          Text(
             text = title,
             maxLines = 1,
-            color = { titleColor },
             style = MaterialTheme.typography.titleMedium,
-            autoSize =
-              TextAutoSize.StepBased(minFontSize = 14.sp, maxFontSize = 16.sp, stepSize = 1.sp),
           )
         }
         if (subtitle.isNotEmpty()) {
@@ -101,7 +100,7 @@ fun GalleryTopAppBar(
           IconButton(onClick = leftAction.actionFn) {
             Icon(
               imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-              contentDescription = stringResource(R.string.cd_navigate_back_icon),
+              contentDescription = stringResource(Res.string.cd_navigate_back_icon),
             )
           }
         }
@@ -109,7 +108,7 @@ fun GalleryTopAppBar(
           IconButton(onClick = leftAction.actionFn) {
             Icon(
               imageVector = Icons.Rounded.Menu,
-              contentDescription = stringResource(R.string.cd_menu),
+              contentDescription = stringResource(Res.string.cd_menu),
             )
           }
         }
@@ -125,7 +124,7 @@ fun GalleryTopAppBar(
           IconButton(onClick = rightAction.actionFn) {
             Icon(
               imageVector = Icons.Rounded.Settings,
-              contentDescription = stringResource(R.string.cd_app_settings_icon),
+              contentDescription = stringResource(Res.string.cd_app_settings_icon),
               tint = MaterialTheme.colorScheme.onSurface,
             )
           }

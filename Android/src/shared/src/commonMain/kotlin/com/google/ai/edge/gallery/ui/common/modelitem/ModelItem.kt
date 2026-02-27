@@ -47,16 +47,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.shared.resources.Res
+import com.google.ai.edge.gallery.shared.resources.cd_collapse_icon
+import com.google.ai.edge.gallery.shared.resources.cd_expand_icon
 import com.google.ai.edge.gallery.ui.common.MarkdownText
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
 import com.google.ai.edge.gallery.ui.theme.customColors
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Composable function to display a model item in the model manager list.
@@ -70,7 +72,7 @@ import com.google.ai.edge.gallery.ui.theme.customColors
 fun ModelItem(
   model: Model,
   task: Task?,
-  modelManagerViewModel: ModelManagerViewModel,
+  modelManagerActions: ModelManagerActions,
   onModelClicked: (Model) -> Unit,
   onBenchmarkClicked: (Model) -> Unit,
   modifier: Modifier = Modifier,
@@ -80,7 +82,7 @@ fun ModelItem(
   showBenchmarkButton: Boolean = false,
   onExpanded: (Boolean) -> Unit = {},
 ) {
-  val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
+  val modelManagerUiState by modelManagerActions.uiState.collectAsState()
   val downloadStatus by remember {
     derivedStateOf { modelManagerUiState.modelDownloadStatus[model.name] }
   }
@@ -129,7 +131,7 @@ fun ModelItem(
           if (model.localFileRelativeDirPathOverride.isEmpty()) {
             DeleteModelButton(
               model = model,
-              modelManagerViewModel = modelManagerViewModel,
+              modelManagerViewModel = modelManagerActions,
               downloadStatus = downloadStatus,
               showDeleteButton = showDeleteButton,
               modifier = Modifier.offset(y = (-12).dp, x = if (model.imported) 12.dp else 0.dp),
@@ -140,7 +142,7 @@ fun ModelItem(
               if (isExpanded) Icons.Rounded.UnfoldLess else Icons.Rounded.UnfoldMore,
               contentDescription =
                 stringResource(
-                  if (isExpanded) R.string.cd_collapse_icon else R.string.cd_expand_icon
+                  if (isExpanded) Res.string.cd_collapse_icon else Res.string.cd_expand_icon
                 ),
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
               modifier = Modifier.alpha(0.6f),
@@ -175,7 +177,7 @@ fun ModelItem(
                   animatedVisibilityScope = this@AnimatedContent,
                 )
                 .padding(top = if (targetState) 12.dp else 0.dp),
-            modelManagerViewModel = modelManagerViewModel,
+            modelManagerActions = modelManagerActions,
             isExpanded = targetState,
             onTryItClicked = { onModelClicked(model) },
             onBenchmarkClicked = { onBenchmarkClicked(model) },

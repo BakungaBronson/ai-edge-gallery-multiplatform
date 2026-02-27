@@ -42,6 +42,9 @@ coroutines = "1.9.0"
 koin = "4.0.0"
 ktor = "3.0.3"
 napier = "2.7.1"
+jetbrainsNavigation = "2.8.0-alpha10"
+jetbrainsLifecycle = "2.8.4"
+kotlinxDatetime = "0.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -104,6 +107,10 @@ ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.r
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 napier = { group = "io.github.aakira", name = "napier", version.ref = "napier" }
+jetbrains-navigation-compose = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref = "jetbrainsNavigation" }
+jetbrains-lifecycle-viewmodel-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "jetbrainsLifecycle" }
+jetbrains-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "jetbrainsLifecycle" }
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -16,6 +16,8 @@
 
 package com.google.ai.edge.gallery.ui.modelmanager
 
+import com.google.ai.edge.gallery.customtasks.common.CustomTask
+import com.google.ai.edge.gallery.data.AppTheme
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import kotlinx.coroutines.flow.StateFlow
@@ -77,4 +79,19 @@ interface ModelManagerActions {
 
   /** Clear any error from loading the model allowlist. */
   fun clearLoadModelAllowlistError()
+
+  /** Find a custom task by its task ID. */
+  fun getCustomTaskByTaskId(id: String): CustomTask?
+
+  /** Get all models across all tasks. */
+  fun getAllModels(): List<Model>
+
+  /** Notify the model manager whether the app is in the foreground. */
+  fun setAppInForeground(foreground: Boolean)
+
+  /** Read the current theme override setting. */
+  fun readThemeOverride(): AppTheme
+
+  /** Save the theme override setting. */
+  fun saveThemeOverride(theme: AppTheme)
 }
