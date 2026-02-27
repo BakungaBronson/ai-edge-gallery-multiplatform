@@ -17,17 +17,33 @@
 package com.google.ai.edge.gallery.ui.common
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import com.google.ai.edge.gallery.ui.theme.customColors
 
-/** Composable function to display Markdown-formatted text. */
 @Composable
-expect fun MarkdownText(
+actual fun MarkdownText(
   text: String,
-  modifier: Modifier = Modifier,
-  smallFontSize: Boolean = false,
-  textColor: Color = MaterialTheme.colorScheme.onSurface,
-  linkColor: Color = MaterialTheme.customColors.linkColor,
-)
+  modifier: Modifier,
+  smallFontSize: Boolean,
+  textColor: Color,
+  linkColor: Color,
+) {
+  val fontSize =
+    if (smallFontSize) MaterialTheme.typography.bodyMedium.fontSize
+    else MaterialTheme.typography.bodyLarge.fontSize
+  Text(
+    text = text,
+    modifier = modifier,
+    style =
+      TextStyle(
+        fontSize = fontSize,
+        lineHeight = fontSize * if (smallFontSize) 1.4f else 1.5f,
+        color = textColor,
+      ),
+  )
+}

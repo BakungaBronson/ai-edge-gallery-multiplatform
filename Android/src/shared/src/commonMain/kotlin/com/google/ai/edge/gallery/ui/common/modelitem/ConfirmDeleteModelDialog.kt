@@ -36,7 +36,7 @@ fun ConfirmDeleteModelDialog(model: Model, onConfirm: () -> Unit, onDismiss: () 
     onDismissRequest = onDismiss,
     title = { Text(stringResource(Res.string.confirm_delete_model_dialog_title)) },
     text = {
-      Text(stringResource(Res.string.confirm_delete_model_dialog_content).format(model.name))
+      Text(stringResource(Res.string.confirm_delete_model_dialog_content).replace("%s", model.name))
     },
     confirmButton = { Button(onClick = onConfirm) { Text(stringResource(Res.string.ok)) } },
     dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } },

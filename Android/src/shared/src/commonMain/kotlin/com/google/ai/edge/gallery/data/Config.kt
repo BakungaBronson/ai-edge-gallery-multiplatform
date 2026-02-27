@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.data
 
+import com.google.ai.edge.gallery.common.formatFloat
 import kotlin.math.abs
 
 /**
@@ -173,6 +174,8 @@ fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
         is Int -> value
         is Float -> value.toInt()
         is Double -> value.toInt()
+        is Long -> value.toInt()
+        is Number -> value.toLong().toInt()
         is String -> value.toIntOrNull() ?: ""
         is Boolean -> if (value) 1 else 0
         else -> ""
@@ -183,6 +186,8 @@ fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
         is Int -> value.toFloat()
         is Float -> value
         is Double -> value.toFloat()
+        is Long -> value.toFloat()
+        is Number -> value.toDouble().toFloat()
         is String -> value.toFloatOrNull() ?: ""
         is Boolean -> if (value) 1f else 0f
         else -> ""
@@ -193,6 +198,8 @@ fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
         is Int -> value.toDouble()
         is Float -> value.toDouble()
         is Double -> value
+        is Long -> value.toDouble()
+        is Number -> value.toDouble()
         is String -> value.toDoubleOrNull() ?: ""
         is Boolean -> if (value) 1.0 else 0.0
         else -> ""
@@ -204,6 +211,8 @@ fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
         is Boolean -> value
         is Float -> abs(value) > 1e-6
         is Double -> abs(value) > 1e-6
+        is Long -> value == 0L
+        is Number -> value.toDouble() == 0.0
         is String -> value.isNotEmpty()
         else -> false
       }
@@ -253,7 +262,7 @@ fun createLlmChatConfigs(
 fun getConfigValueString(value: Any, config: Config): String {
   var strNewValue = "$value"
   if (config.valueType == ValueType.FLOAT) {
-    strNewValue = "%.2f".format(value)
+    strNewValue = formatFloat((value as? Number)?.toFloat() ?: 0f)
   }
   return strNewValue
 }

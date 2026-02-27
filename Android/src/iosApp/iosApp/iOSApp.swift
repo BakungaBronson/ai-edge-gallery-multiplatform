@@ -22,7 +22,7 @@ struct iOSApp: App {
     init() {
         // Initialize Koin DI for iOS with the MediaPipe LLM delegate.
         let llmDelegate = MediaPipeLlmDelegate()
-        IosModuleKt.initKoinIos(llmDelegate: llmDelegate)
+        IosModuleKt.doInitKoinIos(llmDelegate: llmDelegate)
     }
 
     var body: some Scene {

@@ -46,6 +46,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.ai.edge.gallery.common.formatFloat
 import com.google.ai.edge.gallery.data.AppValueSeries
 import com.google.ai.edge.gallery.shared.resources.Res
 import com.google.ai.edge.gallery.shared.resources.tap_to_see_value
@@ -87,7 +88,8 @@ fun BenchmarkValueSeriesViewer(title: String, valueSeries: AppValueSeries, onDis
             if (tappedValue == null) {
               stringResource(Res.string.tap_to_see_value)
             } else {
-              "Value: ${"%.2f".format(tappedValue)}"
+              val value = tappedValue
+              "Value: ${formatFloat(value?.toFloat() ?: 0f)}"
             },
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -205,7 +207,7 @@ fun BenchmarkValueSeriesViewer(title: String, valueSeries: AppValueSeries, onDis
 private fun StatCell(key: String, value: Double) {
   Column() {
     Text(
-      "%.2f".format(value),
+      formatFloat(value.toFloat()),
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       maxLines = 1,

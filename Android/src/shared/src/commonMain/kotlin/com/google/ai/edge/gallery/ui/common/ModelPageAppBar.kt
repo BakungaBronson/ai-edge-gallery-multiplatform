@@ -204,9 +204,10 @@ fun ModelPageAppBar(
     //
     // This may happen when user imports a model with "enable tiny garden" turned on and use the
     // model in another non-tiny-garden task.
-    val modelConfigs = model.configs.toMutableList()
-    if (task.id != BuiltInTaskId.LLM_TINY_GARDEN) {
-      modelConfigs.removeIf { it.key == ConfigKeys.RESET_CONVERSATION_TURN_COUNT }
+    val modelConfigs = if (task.id != BuiltInTaskId.LLM_TINY_GARDEN) {
+      model.configs.filter { it.key != ConfigKeys.RESET_CONVERSATION_TURN_COUNT }.toMutableList()
+    } else {
+      model.configs.toMutableList()
     }
     ConfigDialog(
       title = "Model configs",

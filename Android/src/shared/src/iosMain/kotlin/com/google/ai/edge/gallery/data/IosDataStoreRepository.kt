@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.data
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import platform.Foundation.NSDocumentDirectory
@@ -32,6 +33,7 @@ import platform.Foundation.writeToFile
  * iOS implementation of [DataStoreRepository] using JSON files
  * stored in the app's Documents directory.
  */
+@OptIn(ExperimentalForeignApi::class)
 class IosDataStoreRepository : DataStoreRepository {
   private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
   private val fileManager = NSFileManager.defaultManager
@@ -179,7 +181,7 @@ class IosDataStoreRepository : DataStoreRepository {
 
   override fun setCutout(newCutout: AppCutout) {
     val cutouts = getAllCutouts().toMutableList()
-    val index = cutouts.indexOfFirst { it.name == newCutout.name }
+    val index = cutouts.indexOfFirst { it.id == newCutout.id }
     if (index >= 0) {
       cutouts[index] = newCutout
     } else {

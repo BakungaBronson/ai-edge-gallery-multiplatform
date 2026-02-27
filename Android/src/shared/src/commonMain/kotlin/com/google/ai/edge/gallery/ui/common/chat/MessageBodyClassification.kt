@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.google.ai.edge.gallery.common.formatFloat
 
 val CLASSIFICATION_BAR_HEIGHT = 8.dp
 val CLASSIFICATION_BAR_MAX_WIDTH = 200.dp
@@ -65,7 +66,7 @@ fun MessageBodyClassification(
         )
         // Classification score.
         Text(
-          "%.2f".format(classification.score),
+          formatFloat(classification.score),
           style = MaterialTheme.typography.bodySmall,
           modifier = Modifier.align(Alignment.Bottom),
         )

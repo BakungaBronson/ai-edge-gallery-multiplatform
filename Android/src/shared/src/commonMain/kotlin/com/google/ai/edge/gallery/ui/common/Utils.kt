@@ -43,8 +43,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.ln
-import kotlin.math.pow
+import com.google.ai.edge.gallery.common.formatFloat1
+import com.google.ai.edge.gallery.common.formatHumanReadableSize
 import kotlinx.coroutines.delay
 
 val SMALL_BUTTON_CONTENT_PADDING =
@@ -52,17 +52,7 @@ val SMALL_BUTTON_CONTENT_PADDING =
 
 /** Format the bytes into a human-readable format. */
 fun Long.humanReadableSize(si: Boolean = true, extraDecimalForGbAndAbove: Boolean = false): String {
-  val bytes = this
-
-  val unit = if (si) 1000 else 1024
-  if (bytes < unit) return "$bytes B"
-  val exp = (ln(bytes.toDouble()) / ln(unit.toDouble())).toInt()
-  val pre = (if (si) "kMGTPE" else "KMGTPE")[exp - 1] + if (si) "" else "i"
-  var formatString = "%.1f %sB"
-  if (extraDecimalForGbAndAbove && pre.lowercase() != "k" && pre != "M") {
-    formatString = "%.2f %sB"
-  }
-  return formatString.format(bytes / unit.toDouble().pow(exp.toDouble()), pre)
+  return formatHumanReadableSize(this, si, extraDecimalForGbAndAbove)
 }
 
 fun Float.humanReadableDuration(): String {
@@ -72,16 +62,16 @@ fun Float.humanReadableDuration(): String {
   }
   val seconds = milliseconds / 1000f
   if (seconds < 60) {
-    return "%.1f s".format(seconds)
+    return "${formatFloat1(seconds)} s"
   }
 
   val minutes = seconds / 60f
   if (minutes < 60) {
-    return "%.1f min".format(minutes)
+    return "${formatFloat1(minutes)} min"
   }
 
   val hours = minutes / 60f
-  return "%.1f h".format(hours)
+  return "${formatFloat1(hours)} h"
 }
 
 fun Long.formatToHourMinSecond(): String {

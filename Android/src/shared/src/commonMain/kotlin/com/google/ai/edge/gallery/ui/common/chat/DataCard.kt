@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.google.ai.edge.gallery.common.formatFloat
 import com.google.ai.edge.gallery.ui.theme.bodySmallMediumNarrow
 import com.google.ai.edge.gallery.ui.theme.bodySmallMediumNarrowBold
 import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
@@ -45,7 +46,7 @@ fun DataCard(
     if (showPlaceholder) {
       Text("-", style = bodySmallMediumNarrow())
     } else {
-      strValue = if (value == null) "-" else "%.2f".format(value)
+      strValue = if (value == null) "-" else formatFloat(value)
       if (highlight) {
         Text(strValue, style = bodySmallMediumNarrowBold(), color = MaterialTheme.colorScheme.primary)
       } else {

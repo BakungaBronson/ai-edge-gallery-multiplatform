@@ -16,14 +16,20 @@
 
 package com.google.ai.edge.gallery.platform
 
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.datetime.Clock
+import platform.Foundation.NSCachesDirectory
+import platform.Foundation.NSDate
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSUserDomainMask
-import platform.Foundation.NSCachesDirectory
 import platform.UIKit.UIDevice
 
+@OptIn(ExperimentalForeignApi::class)
 actual class PlatformContext
 
+@OptIn(ExperimentalForeignApi::class)
 actual fun PlatformContext.getAppFilesDirectory(): String {
   val paths = NSFileManager.defaultManager.URLsForDirectory(
     NSDocumentDirectory,
@@ -32,6 +38,7 @@ actual fun PlatformContext.getAppFilesDirectory(): String {
   return (paths.firstOrNull() as? platform.Foundation.NSURL)?.path ?: ""
 }
 
+@OptIn(ExperimentalForeignApi::class)
 actual fun PlatformContext.getCacheDirectory(): String {
   val paths = NSFileManager.defaultManager.URLsForDirectory(
     NSCachesDirectory,
@@ -40,12 +47,15 @@ actual fun PlatformContext.getCacheDirectory(): String {
   return (paths.firstOrNull() as? platform.Foundation.NSURL)?.path ?: ""
 }
 
+@OptIn(ExperimentalForeignApi::class)
 actual fun isDeviceModel(modelName: String): Boolean {
   return UIDevice.currentDevice.model.lowercase().contains(modelName.lowercase())
 }
 
-actual fun currentTimeMillis(): Long =
-  (platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong()
+@OptIn(ExperimentalForeignApi::class)
+actual fun currentTimeMillis(): Long {
+  return Clock.System.now().toEpochMilliseconds()
+}
 
 actual fun logAnalyticsEvent(eventName: String, params: Map<String, String>) {
   // No-op on iOS. Can be implemented with Firebase iOS SDK later.
@@ -53,9 +63,10 @@ actual fun logAnalyticsEvent(eventName: String, params: Map<String, String>) {
 
 actual fun currentPlatform(): AppPlatform = AppPlatform.IOS
 
+@OptIn(ExperimentalForeignApi::class)
 actual fun isDeviceMemoryLow(minDeviceMemoryInGb: Int?): Boolean {
   if (minDeviceMemoryInGb == null) return false
-  val totalMemory = platform.Foundation.NSProcessInfo.processInfo.physicalMemory
+  val totalMemory = NSProcessInfo.processInfo.physicalMemory
   val totalMemoryGb = totalMemory.toDouble() / (1024.0 * 1024.0 * 1024.0)
   return totalMemoryGb < minDeviceMemoryInGb
 }

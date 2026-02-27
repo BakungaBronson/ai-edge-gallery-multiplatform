@@ -78,6 +78,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.google.ai.edge.gallery.common.formatFloat
 import com.google.ai.edge.gallery.data.BooleanSwitchConfig
 import com.google.ai.edge.gallery.data.BottomSheetSelectorConfig
 import com.google.ai.edge.gallery.data.BottomSheetSelectorItem
@@ -234,7 +235,7 @@ fun getTextFieldDisplayValue(valueType: ValueType, value: Float): String {
   return try {
     when (valueType) {
       ValueType.FLOAT -> {
-        "%.2f".format(value)
+        formatFloat(value)
       }
 
       ValueType.INT -> {
