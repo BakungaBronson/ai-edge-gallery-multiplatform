@@ -16,270 +16,252 @@
 
 package com.google.ai.edge.gallery.data
 
-import androidx.datastore.core.DataStore
-import com.google.ai.edge.gallery.proto.AccessTokenData
-import com.google.ai.edge.gallery.proto.BenchmarkResult
-import com.google.ai.edge.gallery.proto.BenchmarkResults
-import com.google.ai.edge.gallery.proto.Cutout
-import com.google.ai.edge.gallery.proto.CutoutCollection
-import com.google.ai.edge.gallery.proto.ImportedModel
-import com.google.ai.edge.gallery.proto.Settings
-import com.google.ai.edge.gallery.proto.Theme
-import com.google.ai.edge.gallery.proto.UserData
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import android.content.Context
+import android.util.Log
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 
-// TODO(b/423700720): Change to async (suspend) functions
-interface DataStoreRepository {
-  fun saveTextInputHistory(history: List<String>)
+private const val TAG = "AGDataStoreRepo"
 
-  fun readTextInputHistory(): List<String>
-
-  fun saveTheme(theme: Theme)
-
-  fun readTheme(): Theme
-
-  fun saveAccessTokenData(accessToken: String, refreshToken: String, expiresAt: Long)
-
-  fun clearAccessTokenData()
-
-  fun readAccessTokenData(): AccessTokenData?
-
-  fun saveImportedModels(importedModels: List<ImportedModel>)
-
-  fun readImportedModels(): List<ImportedModel>
-
-  fun isTosAccepted(): Boolean
-
-  fun acceptTos()
-
-  fun isGemmaTermsOfUseAccepted(): Boolean
-
-  fun acceptGemmaTermsOfUse()
-
-  fun getHasRunTinyGarden(): Boolean
-
-  fun setHasRunTinyGarden(hasRun: Boolean)
-
-  fun addCutout(cutout: Cutout)
-
-  fun getAllCutouts(): List<Cutout>
-
-  fun setCutout(newCutout: Cutout)
-
-  fun setCutouts(cutouts: List<Cutout>)
-
-  fun setHasSeenBenchmarkComparisonHelp(seen: Boolean)
-
-  fun getHasSeenBenchmarkComparisonHelp(): Boolean
-
-  fun addBenchmarkResult(result: BenchmarkResult)
-
-  fun getAllBenchmarkResults(): List<BenchmarkResult>
-
-  fun deleteBenchmarkResult(index: Int)
+private val json = Json {
+  prettyPrint = false
+  ignoreUnknownKeys = true
+  encodeDefaults = true
 }
 
-/** Repository for managing data using Proto DataStore. */
-class DefaultDataStoreRepository(
-  private val dataStore: DataStore<Settings>,
-  private val userDataDataStore: DataStore<UserData>,
-  private val cutoutDataStore: DataStore<CutoutCollection>,
-  private val benchmarkResultsDataStore: DataStore<BenchmarkResults>,
-) : DataStoreRepository {
-  override fun saveTextInputHistory(history: List<String>) {
-    runBlocking {
-      dataStore.updateData { settings ->
-        settings.toBuilder().clearTextInputHistory().addAllTextInputHistory(history).build()
+/** Repository for managing data using JSON file storage. */
+class DefaultDataStoreRepository(private val context: Context) : DataStoreRepository {
+
+  private val settingsFile get() = File(context.filesDir, "settings.json")
+  private val userDataFile get() = File(context.filesDir, "user_data.json")
+  private val cutoutsFile get() = File(context.filesDir, "cutouts.json")
+  private val benchmarkResultsFile get() = File(context.filesDir, "benchmark_results.json")
+
+  private fun readSettings(): AppSettings {
+    return try {
+      if (settingsFile.exists()) {
+        json.decodeFromString<AppSettings>(settingsFile.readText())
+      } else {
+        AppSettings()
       }
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to read settings", e)
+      AppSettings()
     }
+  }
+
+  private fun writeSettings(settings: AppSettings) {
+    try {
+      settingsFile.writeText(json.encodeToString(settings))
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to write settings", e)
+    }
+  }
+
+  private fun readUserDataFromFile(): AppUserData {
+    return try {
+      if (userDataFile.exists()) {
+        json.decodeFromString<AppUserData>(userDataFile.readText())
+      } else {
+        AppUserData()
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to read user data", e)
+      AppUserData()
+    }
+  }
+
+  private fun writeUserData(userData: AppUserData) {
+    try {
+      userDataFile.writeText(json.encodeToString(userData))
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to write user data", e)
+    }
+  }
+
+  private fun readCutoutsFromFile(): AppCutoutCollection {
+    return try {
+      if (cutoutsFile.exists()) {
+        json.decodeFromString<AppCutoutCollection>(cutoutsFile.readText())
+      } else {
+        AppCutoutCollection()
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to read cutouts", e)
+      AppCutoutCollection()
+    }
+  }
+
+  private fun writeCutouts(cutouts: AppCutoutCollection) {
+    try {
+      cutoutsFile.writeText(json.encodeToString(cutouts))
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to write cutouts", e)
+    }
+  }
+
+  private fun readBenchmarkResultsFromFile(): AppBenchmarkResults {
+    return try {
+      if (benchmarkResultsFile.exists()) {
+        json.decodeFromString<AppBenchmarkResults>(benchmarkResultsFile.readText())
+      } else {
+        AppBenchmarkResults()
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to read benchmark results", e)
+      AppBenchmarkResults()
+    }
+  }
+
+  private fun writeBenchmarkResults(results: AppBenchmarkResults) {
+    try {
+      benchmarkResultsFile.writeText(json.encodeToString(results))
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to write benchmark results", e)
+    }
+  }
+
+  // --- Text Input History ---
+
+  override fun saveTextInputHistory(history: List<String>) {
+    val settings = readSettings()
+    writeSettings(settings.copy(textInputHistory = history))
   }
 
   override fun readTextInputHistory(): List<String> {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.textInputHistoryList
-    }
+    return readSettings().textInputHistory
   }
 
-  override fun saveTheme(theme: Theme) {
-    runBlocking {
-      dataStore.updateData { settings -> settings.toBuilder().setTheme(theme).build() }
-    }
+  // --- Theme ---
+
+  override fun saveTheme(theme: AppTheme) {
+    val settings = readSettings()
+    writeSettings(settings.copy(theme = theme))
   }
 
-  override fun readTheme(): Theme {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      val curTheme = settings.theme
-      // Use "auto" as the default theme.
-      if (curTheme == Theme.THEME_UNSPECIFIED) Theme.THEME_AUTO else curTheme
-    }
+  override fun readTheme(): AppTheme {
+    val theme = readSettings().theme
+    return if (theme == AppTheme.THEME_UNSPECIFIED) AppTheme.THEME_AUTO else theme
   }
+
+  // --- Access Token Data ---
 
   override fun saveAccessTokenData(accessToken: String, refreshToken: String, expiresAt: Long) {
-    runBlocking {
-      // Clear the entry in old data store.
-      dataStore.updateData { settings ->
-        settings.toBuilder().setAccessTokenData(AccessTokenData.getDefaultInstance()).build()
-      }
-
-      userDataDataStore.updateData { userData ->
-        userData
-          .toBuilder()
-          .setAccessTokenData(
-            AccessTokenData.newBuilder()
-              .setAccessToken(accessToken)
-              .setRefreshToken(refreshToken)
-              .setExpiresAtMs(expiresAt)
-              .build()
-          )
-          .build()
-      }
-    }
+    val userData = readUserDataFromFile()
+    writeUserData(
+      userData.copy(
+        accessTokenData = AppAccessTokenData(
+          accessToken = accessToken,
+          refreshToken = refreshToken,
+          expiresAtMs = expiresAt,
+        )
+      )
+    )
   }
 
   override fun clearAccessTokenData() {
-    runBlocking {
-      dataStore.updateData { settings -> settings.toBuilder().clearAccessTokenData().build() }
-      userDataDataStore.updateData { userData ->
-        userData.toBuilder().clearAccessTokenData().build()
-      }
-    }
+    val userData = readUserDataFromFile()
+    writeUserData(userData.copy(accessTokenData = null))
   }
 
-  override fun readAccessTokenData(): AccessTokenData? {
-    return runBlocking {
-      val userData = userDataDataStore.data.first()
-      userData.accessTokenData
-    }
+  override fun readAccessTokenData(): AppAccessTokenData? {
+    return readUserDataFromFile().accessTokenData
   }
 
-  override fun saveImportedModels(importedModels: List<ImportedModel>) {
-    runBlocking {
-      dataStore.updateData { settings ->
-        settings.toBuilder().clearImportedModel().addAllImportedModel(importedModels).build()
-      }
-    }
+  // --- Imported Models ---
+
+  override fun saveImportedModels(importedModels: List<AppImportedModel>) {
+    val settings = readSettings()
+    writeSettings(settings.copy(importedModels = importedModels))
   }
 
-  override fun readImportedModels(): List<ImportedModel> {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.importedModelList
-    }
+  override fun readImportedModels(): List<AppImportedModel> {
+    return readSettings().importedModels
   }
+
+  // --- TOS ---
 
   override fun isTosAccepted(): Boolean {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.isTosAccepted
-    }
+    return readSettings().isTosAccepted
   }
 
   override fun acceptTos() {
-    runBlocking {
-      dataStore.updateData { settings -> settings.toBuilder().setIsTosAccepted(true).build() }
-    }
+    val settings = readSettings()
+    writeSettings(settings.copy(isTosAccepted = true))
   }
 
+  // --- Gemma Terms ---
+
   override fun isGemmaTermsOfUseAccepted(): Boolean {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.isGemmaTermsAccepted
-    }
+    return readSettings().isGemmaTermsAccepted
   }
 
   override fun acceptGemmaTermsOfUse() {
-    runBlocking {
-      dataStore.updateData { settings ->
-        settings.toBuilder().setIsGemmaTermsAccepted(true).build()
-      }
-    }
+    val settings = readSettings()
+    writeSettings(settings.copy(isGemmaTermsAccepted = true))
   }
 
+  // --- Tiny Garden ---
+
   override fun getHasRunTinyGarden(): Boolean {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.hasRunTinyGarden
-    }
+    return readSettings().hasRunTinyGarden
   }
 
   override fun setHasRunTinyGarden(hasRun: Boolean) {
-    runBlocking {
-      dataStore.updateData { settings -> settings.toBuilder().setHasRunTinyGarden(hasRun).build() }
-    }
+    val settings = readSettings()
+    writeSettings(settings.copy(hasRunTinyGarden = hasRun))
   }
 
-  override fun addCutout(cutout: Cutout) {
-    runBlocking {
-      cutoutDataStore.updateData { cutouts -> cutouts.toBuilder().addCutout(cutout).build() }
-    }
+  // --- Cutouts ---
+
+  override fun addCutout(cutout: AppCutout) {
+    val collection = readCutoutsFromFile()
+    writeCutouts(collection.copy(cutouts = collection.cutouts + cutout))
   }
 
-  override fun getAllCutouts(): List<Cutout> {
-    return runBlocking { cutoutDataStore.data.first().cutoutList }
+  override fun getAllCutouts(): List<AppCutout> {
+    return readCutoutsFromFile().cutouts
   }
 
-  override fun setCutout(newCutout: Cutout) {
-    runBlocking {
-      cutoutDataStore.updateData { cutouts ->
-        var index = -1
-        for (i in 0..<cutouts.cutoutCount) {
-          val cutout = cutouts.cutoutList.get(i)
-          if (cutout.id == newCutout.id) {
-            index = i
-            break
-          }
-        }
-        if (index >= 0) {
-          cutouts.toBuilder().setCutout(index, newCutout).build()
-        } else {
-          cutouts
-        }
-      }
-    }
+  override fun setCutout(newCutout: AppCutout) {
+    val collection = readCutoutsFromFile()
+    val updatedCutouts = collection.cutouts.map { if (it.id == newCutout.id) newCutout else it }
+    writeCutouts(collection.copy(cutouts = updatedCutouts))
   }
 
-  override fun setCutouts(cutouts: List<Cutout>) {
-    runBlocking {
-      cutoutDataStore.updateData { CutoutCollection.newBuilder().addAllCutout(cutouts).build() }
-    }
+  override fun setCutouts(cutouts: List<AppCutout>) {
+    writeCutouts(AppCutoutCollection(cutouts = cutouts))
   }
+
+  // --- Benchmark Comparison Help ---
 
   override fun setHasSeenBenchmarkComparisonHelp(seen: Boolean) {
-    runBlocking {
-      dataStore.updateData { settings ->
-        settings.toBuilder().setHasSeenBenchmarkComparisonHelp(seen).build()
-      }
-    }
+    val settings = readSettings()
+    writeSettings(settings.copy(hasSeenBenchmarkComparisonHelp = seen))
   }
 
   override fun getHasSeenBenchmarkComparisonHelp(): Boolean {
-    return runBlocking {
-      val settings = dataStore.data.first()
-      settings.hasSeenBenchmarkComparisonHelp
-    }
+    return readSettings().hasSeenBenchmarkComparisonHelp
   }
 
-  override fun addBenchmarkResult(result: BenchmarkResult) {
-    runBlocking {
-      benchmarkResultsDataStore.updateData { results ->
-        results.toBuilder().addResult(0, result).build()
-      }
-    }
+  // --- Benchmark Results ---
+
+  override fun addBenchmarkResult(result: AppBenchmarkResult) {
+    val results = readBenchmarkResultsFromFile()
+    writeBenchmarkResults(results.copy(results = listOf(result) + results.results))
   }
 
-  override fun getAllBenchmarkResults(): List<BenchmarkResult> {
-    return runBlocking { benchmarkResultsDataStore.data.first().resultList }
+  override fun getAllBenchmarkResults(): List<AppBenchmarkResult> {
+    return readBenchmarkResultsFromFile().results
   }
 
   override fun deleteBenchmarkResult(index: Int) {
-    runBlocking {
-      benchmarkResultsDataStore.updateData { results ->
-        val newResults = results.toBuilder().removeResult(index).build()
-        newResults
-      }
+    val results = readBenchmarkResultsFromFile()
+    val mutableResults = results.results.toMutableList()
+    if (index in mutableResults.indices) {
+      mutableResults.removeAt(index)
     }
+    writeBenchmarkResults(results.copy(results = mutableResults))
   }
 }

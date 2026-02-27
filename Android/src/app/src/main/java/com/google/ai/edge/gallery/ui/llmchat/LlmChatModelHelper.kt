@@ -86,7 +86,7 @@ object LlmChatModelHelper {
       }
     Log.d(TAG, "Preferred backend: $preferredBackend")
 
-    val modelPath = model.getPath(context = context)
+    val modelPath = model.getPath(basePath = context.getExternalFilesDir(null)?.absolutePath ?: "")
     val engineConfig =
       EngineConfig(
         modelPath = modelPath,

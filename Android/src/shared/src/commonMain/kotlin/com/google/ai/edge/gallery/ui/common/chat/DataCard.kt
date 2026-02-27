@@ -1,0 +1,59 @@
+/*
+ * Copyright 2025 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.ai.edge.gallery.ui.common.chat
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.google.ai.edge.gallery.ui.theme.bodySmallMediumNarrow
+import com.google.ai.edge.gallery.ui.theme.bodySmallMediumNarrowBold
+import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
+import com.google.ai.edge.gallery.ui.theme.labelSmallNarrowMedium
+
+@Composable
+fun DataCard(
+  label: String,
+  value: Float?,
+  unit: String,
+  highlight: Boolean = false,
+  showPlaceholder: Boolean = false,
+) {
+  var strValue = "-"
+  Column(modifier = Modifier.semantics { isTraversalGroup = true }) {
+    Text(label, style = labelSmallNarrowMedium())
+    if (showPlaceholder) {
+      Text("-", style = bodySmallMediumNarrow())
+    } else {
+      strValue = if (value == null) "-" else "%.2f".format(value)
+      if (highlight) {
+        Text(strValue, style = bodySmallMediumNarrowBold(), color = MaterialTheme.colorScheme.primary)
+      } else {
+        Text(strValue, style = bodySmallMediumNarrow())
+      }
+    }
+    if (strValue != "-") {
+      Text(unit, style = labelSmallNarrow(), modifier = Modifier.alpha(0.5f).offset(y = (-1).dp))
+    }
+  }
+}

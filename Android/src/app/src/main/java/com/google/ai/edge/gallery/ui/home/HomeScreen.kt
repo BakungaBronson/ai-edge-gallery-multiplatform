@@ -448,7 +448,7 @@ private fun AppTitle(enableAnimation: Boolean) {
   val titleColor = MaterialTheme.customColors.appTitleGradientColors[1]
   val screenWidthInDp = LocalConfiguration.current.screenWidthDp.dp
   val fontSize = with(LocalDensity.current) { (screenWidthInDp.toPx() * 0.12f).toSp() }
-  val titleStyle = homePageTitleStyle.copy(fontSize = fontSize, lineHeight = fontSize)
+  val titleStyle = homePageTitleStyle().copy(fontSize = fontSize, lineHeight = fontSize)
 
   // First line text "Google AI" and its animation.
   //
@@ -792,11 +792,8 @@ private fun TaskCard(
 }
 
 private fun getCategoryLabel(context: Context, category: CategoryInfo): String {
-  val stringRes = category.labelStringRes
   val label = category.label
-  if (stringRes != null) {
-    return context.getString(stringRes)
-  } else if (label != null) {
+  if (label.isNotEmpty()) {
     return label
   }
   return context.getString(R.string.category_unlabeled)

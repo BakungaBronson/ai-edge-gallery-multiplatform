@@ -16,31 +16,25 @@
 
 package com.google.ai.edge.gallery.ui.llmchat
 
-import android.content.Context
+import com.google.ai.edge.gallery.platform.PlatformContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Mms
 import androidx.compose.runtime.Composable
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.customtasks.common.CustomTaskDataForBuiltinTask
 import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
-import javax.inject.Inject
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import kotlinx.coroutines.CoroutineScope
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // AI Chat.
 
-class LlmChatTask @Inject constructor() : CustomTask {
+class LlmChatTask : CustomTask {
   override val task: Task =
     Task(
       id = BuiltInTaskId.LLM_CHAT,
@@ -52,17 +46,17 @@ class LlmChatTask @Inject constructor() : CustomTask {
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
       sourceCodeUrl =
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
-      textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
+      textInputPlaceHolderKey = "Type prompt…",
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
   ) {
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = false,
       supportAudio = false,
@@ -71,7 +65,7 @@ class LlmChatTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -82,24 +76,14 @@ class LlmChatTask @Inject constructor() : CustomTask {
   @Composable
   override fun MainScreen(data: Any) {
     val myData = data as CustomTaskDataForBuiltinTask
-    LlmChatScreen(modelManagerViewModel = myData.modelManagerViewModel, navigateUp = myData.onNavUp)
-  }
-}
-
-@Module
-@InstallIn(SingletonComponent::class) // Or another component that fits your scope
-internal object LlmChatTaskModule {
-  @Provides
-  @IntoSet
-  fun provideTask(): CustomTask {
-    return LlmChatTask()
+    LlmChatScreen(modelManagerViewModel = myData.modelManagerActions as ModelManagerViewModel, navigateUp = myData.onNavUp)
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Ask image.
 
-class LlmAskImageTask @Inject constructor() : CustomTask {
+class LlmAskImageTask : CustomTask {
   override val task: Task =
     Task(
       id = BuiltInTaskId.LLM_ASK_IMAGE,
@@ -111,17 +95,17 @@ class LlmAskImageTask @Inject constructor() : CustomTask {
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
       sourceCodeUrl =
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
-      textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
+      textInputPlaceHolderKey = "Type prompt…",
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
   ) {
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = true,
       supportAudio = false,
@@ -130,7 +114,7 @@ class LlmAskImageTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -142,26 +126,16 @@ class LlmAskImageTask @Inject constructor() : CustomTask {
   override fun MainScreen(data: Any) {
     val myData = data as CustomTaskDataForBuiltinTask
     LlmAskImageScreen(
-      modelManagerViewModel = myData.modelManagerViewModel,
+      modelManagerViewModel = myData.modelManagerActions as ModelManagerViewModel,
       navigateUp = myData.onNavUp,
     )
-  }
-}
-
-@Module
-@InstallIn(SingletonComponent::class) // Or another component that fits your scope
-internal object LlmAskImageModule {
-  @Provides
-  @IntoSet
-  fun provideTask(): CustomTask {
-    return LlmAskImageTask()
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Ask audio.
 
-class LlmAskAudioTask @Inject constructor() : CustomTask {
+class LlmAskAudioTask : CustomTask {
   override val task: Task =
     Task(
       id = BuiltInTaskId.LLM_ASK_AUDIO,
@@ -174,17 +148,17 @@ class LlmAskAudioTask @Inject constructor() : CustomTask {
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
       sourceCodeUrl =
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
-      textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
+      textInputPlaceHolderKey = "Type prompt…",
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
   ) {
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = false,
       supportAudio = true,
@@ -193,7 +167,7 @@ class LlmAskAudioTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -205,18 +179,9 @@ class LlmAskAudioTask @Inject constructor() : CustomTask {
   override fun MainScreen(data: Any) {
     val myData = data as CustomTaskDataForBuiltinTask
     LlmAskAudioScreen(
-      modelManagerViewModel = myData.modelManagerViewModel,
+      modelManagerViewModel = myData.modelManagerActions as ModelManagerViewModel,
       navigateUp = myData.onNavUp,
     )
   }
 }
 
-@Module
-@InstallIn(SingletonComponent::class) // Or another component that fits your scope
-internal object LlmAskAudioModule {
-  @Provides
-  @IntoSet
-  fun provideTask(): CustomTask {
-    return LlmAskAudioTask()
-  }
-}

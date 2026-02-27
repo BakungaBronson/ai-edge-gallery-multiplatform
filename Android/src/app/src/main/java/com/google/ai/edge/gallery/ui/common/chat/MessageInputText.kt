@@ -32,7 +32,6 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.StringRes
 import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -154,7 +153,7 @@ fun MessageInputText(
   imageCount: Int,
   audioClipMessageCount: Int,
   modelInitializing: Boolean,
-  @StringRes textFieldPlaceHolderRes: Int,
+  textFieldPlaceHolderText: String,
   onValueChanged: (String) -> Unit,
   onSendMessage: (List<ChatMessage>) -> Unit,
   modelPreparing: Boolean = false,
@@ -544,7 +543,7 @@ fun MessageInputText(
                     Modifier.weight(1f).padding(start = 36.dp).semantics {
                       contentDescription = cdPromptInput
                     },
-                  placeholder = { Text(stringResource(textFieldPlaceHolderRes)) },
+                  placeholder = { Text(textFieldPlaceHolderText) },
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))

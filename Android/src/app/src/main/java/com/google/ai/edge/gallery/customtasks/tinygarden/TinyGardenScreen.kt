@@ -89,7 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import androidx.webkit.WebViewAssetLoader
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
@@ -127,7 +127,7 @@ fun TinyGardenScreen(
   setAppBarControlsDisabled: (Boolean) -> Unit,
   setTopBarVisible: (Boolean) -> Unit,
   commandFlow: Flow<TinyGardenCommand>,
-  viewModel: TinyGardenViewModel = hiltViewModel(),
+  viewModel: TinyGardenViewModel = koinViewModel(),
 ) {
   val uiState by viewModel.uiState.collectAsState()
   var recordAudioPermissionGranted by remember { mutableStateOf(false) }
@@ -224,7 +224,7 @@ fun MainUi(
   setAppBarControlsDisabled: (Boolean) -> Unit,
   setTopBarVisible: (Boolean) -> Unit,
   commandFlow: Flow<TinyGardenCommand>,
-  holdToDictateViewModel: HoldToDictateViewModel = hiltViewModel(),
+  holdToDictateViewModel: HoldToDictateViewModel = koinViewModel(),
 ) {
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
   val model = modelManagerUiState.selectedModel

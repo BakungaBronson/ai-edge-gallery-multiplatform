@@ -1,0 +1,7 @@
+// Configuration for AI Edge Gallery iOS App
+// Points to the shared KMP framework built by Gradle
+
+TEAM_ID =
+PRODUCT_BUNDLE_IDENTIFIER = com.google.ai.edge.gallery
+FRAMEWORK_SEARCH_PATHS = $(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+OTHER_LDFLAGS = $(inherited) -framework shared

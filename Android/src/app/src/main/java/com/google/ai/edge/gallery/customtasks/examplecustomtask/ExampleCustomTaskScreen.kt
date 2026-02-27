@@ -16,7 +16,7 @@
 
 package com.google.ai.edge.gallery.customtasks.examplecustomtask
 
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.google.ai.edge.gallery.data.ConfigKey
 import com.google.ai.edge.gallery.data.NumberSliderConfig
 import com.google.ai.edge.gallery.data.ValueType
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
 
 data class ExampleCustomTaskModelInstance(val content: String)
 
@@ -101,8 +101,8 @@ val EXAMPLE_CUSTOM_TASK_CONFIGS =
 /** The main screen of the example custom task. */
 @Composable
 fun ExampleCustomTaskScreen(
-  modelManagerViewModel: ModelManagerViewModel,
-  viewModel: ExampleCustomTaskViewModel = hiltViewModel(),
+  modelManagerViewModel: ModelManagerActions,
+  viewModel: ExampleCustomTaskViewModel = koinViewModel(),
 ) {
   val colors = listOf(MaterialTheme.colorScheme.onSurface, Color.Red, Color.Green, Color.Blue)
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()

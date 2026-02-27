@@ -23,9 +23,6 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,8 +37,7 @@ private const val AUDIO_METER_MAX_DB = 100.0f
 /** The UI state of the HoldToDictateViewModel. */
 data class HoldToDictateUiState(val recognizing: Boolean = false, val recognizedText: String = "")
 
-@HiltViewModel
-class HoldToDictateViewModel @Inject constructor(@ApplicationContext private val context: Context) :
+class HoldToDictateViewModel(private val context: Context) :
   ViewModel(), RecognitionListener {
   protected val _uiState = MutableStateFlow(HoldToDictateUiState())
   val uiState = _uiState.asStateFlow()

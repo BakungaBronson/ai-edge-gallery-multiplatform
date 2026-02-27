@@ -18,8 +18,6 @@ package com.google.ai.edge.gallery.customtasks.examplecustomtask
 
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -32,8 +30,7 @@ import kotlinx.coroutines.flow.update
 data class ExampleCustomTaskUiState(val textColor: Color)
 
 /** The ViewModel of the example custom task screen. */
-@HiltViewModel
-class ExampleCustomTaskViewModel @Inject constructor() : ViewModel() {
+class ExampleCustomTaskViewModel : ViewModel() {
   protected val _uiState = MutableStateFlow(ExampleCustomTaskUiState(textColor = Color.Black))
   val uiState = _uiState.asStateFlow()
 

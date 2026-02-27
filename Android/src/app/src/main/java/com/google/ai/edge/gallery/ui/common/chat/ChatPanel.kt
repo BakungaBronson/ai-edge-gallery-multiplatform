@@ -308,7 +308,7 @@ fun ChatPanel(
               horizontalAlignment = hAlign,
             ) messageColumn@{
               // Sender row.
-              var agentName = stringResource(task.agentNameRes)
+              var agentName = task.agentNameKey
               if (message.accelerator.isNotEmpty()) {
                 agentName = "$agentName on ${message.accelerator}"
               }
@@ -521,7 +521,7 @@ fun ChatPanel(
         audioClipMessageCount = audioClipMesssageCountToLastconfigChange,
         modelInitializing =
           modelInitializationStatus?.status == ModelInitializationStatusType.INITIALIZING,
-        textFieldPlaceHolderRes = task.textInputPlaceHolderRes,
+        textFieldPlaceHolderText = task.textInputPlaceHolderKey,
         onValueChanged = { curMessage = it },
         onSendMessage = {
           onSendMessage(selectedModel, it)

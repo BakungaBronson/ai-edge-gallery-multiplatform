@@ -16,7 +16,7 @@
 
 package com.google.ai.edge.gallery.ui.llmchat
 
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
@@ -37,7 +37,7 @@ fun LlmChatScreen(
   modelManagerViewModel: ModelManagerViewModel,
   navigateUp: () -> Unit,
   modifier: Modifier = Modifier,
-  viewModel: LlmChatViewModel = hiltViewModel(),
+  viewModel: LlmChatViewModel = koinViewModel(),
 ) {
   ChatViewWrapper(
     viewModel = viewModel,
@@ -53,7 +53,7 @@ fun LlmAskImageScreen(
   modelManagerViewModel: ModelManagerViewModel,
   navigateUp: () -> Unit,
   modifier: Modifier = Modifier,
-  viewModel: LlmAskImageViewModel = hiltViewModel(),
+  viewModel: LlmAskImageViewModel = koinViewModel(),
 ) {
   ChatViewWrapper(
     viewModel = viewModel,
@@ -69,7 +69,7 @@ fun LlmAskAudioScreen(
   modelManagerViewModel: ModelManagerViewModel,
   navigateUp: () -> Unit,
   modifier: Modifier = Modifier,
-  viewModel: LlmAskAudioViewModel = hiltViewModel(),
+  viewModel: LlmAskAudioViewModel = koinViewModel(),
 ) {
   ChatViewWrapper(
     viewModel = viewModel,

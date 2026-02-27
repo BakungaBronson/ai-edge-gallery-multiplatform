@@ -31,9 +31,6 @@ import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
 import com.google.ai.edge.gallery.ui.llmchat.LlmModelInstance
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,11 +56,8 @@ data class TinyGardenUiState(
 )
 
 /** The ViewModel of the task screen. */
-@HiltViewModel
-class TinyGardenViewModel
-@Inject
-constructor(
-  @ApplicationContext private val context: Context,
+class TinyGardenViewModel(
+  private val context: Context,
   val dataStoreRepository: DataStoreRepository,
 ) : ViewModel() {
   protected val _uiState = MutableStateFlow(TinyGardenUiState())

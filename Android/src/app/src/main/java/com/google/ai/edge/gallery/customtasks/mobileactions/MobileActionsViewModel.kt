@@ -35,13 +35,10 @@ import com.google.ai.edge.gallery.ui.modelmanager.ModelInitializationStatusType
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.ZoneId
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,10 +60,7 @@ data class MobileActionsUiState(
   val noFunctionRecognized: Boolean = false,
 )
 
-@HiltViewModel
-class MobileActionsViewModel
-@Inject
-constructor(@ApplicationContext private val appContext: Context) : ViewModel() {
+class MobileActionsViewModel(private val appContext: Context) : ViewModel() {
   protected val _uiState = MutableStateFlow(MobileActionsUiState())
   val uiState = _uiState.asStateFlow()
 

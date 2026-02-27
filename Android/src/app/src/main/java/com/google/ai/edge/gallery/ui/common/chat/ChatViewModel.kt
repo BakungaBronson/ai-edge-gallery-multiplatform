@@ -26,29 +26,10 @@ import kotlinx.coroutines.flow.update
 
 private const val TAG = "AGChatViewModel"
 
-data class ChatUiState(
-  /** Indicates whether the runtime is currently processing a message. */
-  val inProgress: Boolean = false,
-
-  /** Indicates whether the session is being reset. */
-  val isResettingSession: Boolean = false,
-
-  /**
-   * Indicates whether the model is preparing (before outputting any result and after initializing).
-   */
-  val preparing: Boolean = false,
-
-  /** A map of model names to lists of chat messages. */
-  val messagesByModel: Map<String, MutableList<ChatMessage>> = mapOf(),
-
-  /** A map of model names to the currently streaming chat message. */
-  val streamingMessagesByModel: Map<String, ChatMessage> = mapOf(),
-)
-
 /** ViewModel responsible for managing the chat UI state and handling chat-related operations. */
-abstract class ChatViewModel() : ViewModel() {
+abstract class ChatViewModel() : ViewModel(), ChatActions {
   private val _uiState = MutableStateFlow(createUiState())
-  val uiState = _uiState.asStateFlow()
+  override val uiState = _uiState.asStateFlow()
 
   fun addMessage(model: Model, message: ChatMessage) {
     val newMessagesByModel = _uiState.value.messagesByModel.toMutableMap()

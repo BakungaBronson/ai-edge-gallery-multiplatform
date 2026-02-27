@@ -73,7 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.R
-import com.google.ai.edge.gallery.proto.Theme
+import com.google.ai.edge.gallery.data.AppTheme
 import com.google.ai.edge.gallery.ui.common.ClickableLink
 import com.google.ai.edge.gallery.ui.common.tos.AppTosDialog
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
@@ -85,12 +85,12 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.min
 
-private val THEME_OPTIONS = listOf(Theme.THEME_AUTO, Theme.THEME_LIGHT, Theme.THEME_DARK)
+private val THEME_OPTIONS = listOf(AppTheme.THEME_AUTO, AppTheme.THEME_LIGHT, AppTheme.THEME_DARK)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
-  curThemeOverride: Theme,
+  curThemeOverride: AppTheme,
   modelManagerViewModel: ModelManagerViewModel,
   onDismissed: () -> Unit,
 ) {
@@ -133,7 +133,7 @@ fun SettingsDialog(
           // Subtitle.
           Text(
             "App version: ${BuildConfig.VERSION_NAME}",
-            style = labelSmallNarrow,
+            style = labelSmallNarrow(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.offset(y = (-6).dp),
           )
@@ -172,9 +172,9 @@ fun SettingsDialog(
                     val uiModeManager =
                       context.applicationContext.getSystemService(Context.UI_MODE_SERVICE)
                         as UiModeManager
-                    if (theme == Theme.THEME_AUTO) {
+                    if (theme == AppTheme.THEME_AUTO) {
                       uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_AUTO)
-                    } else if (theme == Theme.THEME_LIGHT) {
+                    } else if (theme == AppTheme.THEME_LIGHT) {
                       uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_NO)
                     } else {
                       uiModeManager.setApplicationNightMode(UiModeManager.MODE_NIGHT_YES)
@@ -348,11 +348,11 @@ fun SettingsDialog(
   }
 }
 
-private fun themeLabel(theme: Theme): String {
+private fun themeLabel(theme: AppTheme): String {
   return when (theme) {
-    Theme.THEME_AUTO -> "Auto"
-    Theme.THEME_LIGHT -> "Light"
-    Theme.THEME_DARK -> "Dark"
+    AppTheme.THEME_AUTO -> "Auto"
+    AppTheme.THEME_LIGHT -> "Light"
+    AppTheme.THEME_DARK -> "Dark"
     else -> "Unknown"
   }
 }

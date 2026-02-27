@@ -24,8 +24,6 @@ import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
 import com.google.ai.edge.gallery.ui.llmchat.LlmModelInstance
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,26 +33,9 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "AGLlmSingleTurnVM"
 
-data class LlmSingleTurnUiState(
-  /** Indicates whether the runtime is currently processing a message. */
-  val inProgress: Boolean = false,
-
-  /**
-   * Indicates whether the model is preparing (before outputting any result and after initializing).
-   */
-  val preparing: Boolean = false,
-
-  // model -> <template label -> response>
-  val responsesByModel: Map<String, Map<String, String>>,
-
-  /** Selected prompt template type. */
-  val selectedPromptTemplateType: PromptTemplateType = PromptTemplateType.entries[0],
-)
-
-@HiltViewModel
-class LlmSingleTurnViewModel @Inject constructor() : ViewModel() {
+class LlmSingleTurnViewModel : ViewModel(), LlmSingleTurnActions {
   private val _uiState = MutableStateFlow(createUiState())
-  val uiState = _uiState.asStateFlow()
+  override val uiState = _uiState.asStateFlow()
 
   fun generateResponse(task: Task, model: Model, input: String) {
     viewModelScope.launch(Dispatchers.Default) {
@@ -117,7 +98,7 @@ class LlmSingleTurnViewModel @Inject constructor() : ViewModel() {
     }
   }
 
-  fun selectPromptTemplate(model: Model, promptTemplateType: PromptTemplateType) {
+  override fun selectPromptTemplate(model: Model, promptTemplateType: PromptTemplateType) {
     Log.d(TAG, "selecting prompt template: ${promptTemplateType.label}")
 
     // Clear response.

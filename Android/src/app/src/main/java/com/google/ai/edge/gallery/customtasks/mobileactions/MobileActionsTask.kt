@@ -15,24 +15,23 @@
  */
 package com.google.ai.edge.gallery.customtasks.mobileactions
 
-import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Functions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.customtasks.common.CustomTaskData
 import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.platform.PlatformContext
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 
 private const val TAG = "AGMATask"
@@ -41,7 +40,7 @@ private const val TAG = "AGMATask"
  * A custom task that demonstrates how to use function calling to control various device
  * functionalities.
  */
-class MobileActionsTask @Inject constructor() : CustomTask {
+class MobileActionsTask : CustomTask {
   private var curActions = mutableStateListOf<Action>()
   private val tools = listOf(MobileActionsTools(onFunctionCalled = { curActions.add(it) }))
 
@@ -55,13 +54,13 @@ class MobileActionsTask @Inject constructor() : CustomTask {
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/customtasks/mobileactions",
       category = Category.LLM,
       icon = Icons.Outlined.Functions,
-      agentNameRes = R.string.chat_agent_agent_name,
+      agentNameKey = "Agent",
       models = mutableListOf(),
       experimental = true,
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
@@ -70,7 +69,7 @@ class MobileActionsTask @Inject constructor() : CustomTask {
 
     // Expected to get the current time on user's device.
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = false,
       supportAudio = false,
@@ -81,7 +80,7 @@ class MobileActionsTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -95,7 +94,7 @@ class MobileActionsTask @Inject constructor() : CustomTask {
     val customTaskData = data as CustomTaskData
     MobileActionsScreen(
       task = task,
-      modelManagerViewModel = customTaskData.modelManagerViewModel,
+      modelManagerViewModel = customTaskData.modelManagerActions as ModelManagerViewModel,
       bottomPadding = customTaskData.bottomPadding,
       setAppBarControlsDisabled = customTaskData.setAppBarControlsDisabled,
       curActions = curActions,

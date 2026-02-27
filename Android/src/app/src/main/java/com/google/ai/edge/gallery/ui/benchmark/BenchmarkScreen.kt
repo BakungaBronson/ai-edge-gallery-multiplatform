@@ -63,7 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Accelerator
@@ -87,7 +87,7 @@ fun BenchmarkScreen(
   initialModel: Model,
   modelManagerViewModel: ModelManagerViewModel,
   modifier: Modifier = Modifier,
-  viewModel: BenchmarkViewModel = hiltViewModel(),
+  viewModel: BenchmarkViewModel = koinViewModel(),
   onBackClicked: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsState()
@@ -162,7 +162,7 @@ fun BenchmarkScreen(
     filteredResults.clear()
     filteredResults.addAll(
       uiState.results.filter {
-        it.benchmarkResult.llmResult?.baiscInfo?.modelName == selectedModelName
+        it.benchmarkResult.llmResult?.basicInfo?.modelName == selectedModelName
       }
     )
   }
@@ -183,7 +183,7 @@ fun BenchmarkScreen(
               BenchmarkModelPicker(
                 selectedModelName = selectedModelName,
                 modelNames = downloadedLlmModelNames,
-                titleResId = R.string.select_downloaded_model,
+                title = stringResource(R.string.select_downloaded_model),
                 onSelected = { selectedModelName = it },
               )
             }

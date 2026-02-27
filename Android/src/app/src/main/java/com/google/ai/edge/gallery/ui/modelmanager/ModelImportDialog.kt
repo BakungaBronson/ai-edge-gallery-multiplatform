@@ -77,8 +77,8 @@ import com.google.ai.edge.gallery.data.NumberSliderConfig
 import com.google.ai.edge.gallery.data.SegmentedButtonConfig
 import com.google.ai.edge.gallery.data.ValueType
 import com.google.ai.edge.gallery.data.convertValueToTargetType
-import com.google.ai.edge.gallery.proto.ImportedModel
-import com.google.ai.edge.gallery.proto.LlmConfig
+import com.google.ai.edge.gallery.data.AppImportedModel
+import com.google.ai.edge.gallery.data.AppLlmConfig
 import com.google.ai.edge.gallery.ui.common.ConfigEditorsPanel
 import com.google.ai.edge.gallery.ui.common.ensureValidFileName
 import com.google.ai.edge.gallery.ui.common.humanReadableSize
@@ -147,7 +147,7 @@ private val IMPORT_CONFIGS_LLM: List<Config> =
 fun ModelImportDialog(
   uri: Uri,
   onDismiss: () -> Unit,
-  onDone: (ImportedModel) -> Unit,
+  onDone: (AppImportedModel) -> Unit,
   defaultValues: Map<ConfigKey, Any> = emptyMap(),
 ) {
   val context = LocalContext.current
@@ -271,24 +271,21 @@ fun ModelImportDialog(
                   valueType = ValueType.BOOLEAN,
                 )
                   as Boolean
-              val importedModel: ImportedModel =
-                ImportedModel.newBuilder()
-                  .setFileName(fileName)
-                  .setFileSize(fileSize)
-                  .setLlmConfig(
-                    LlmConfig.newBuilder()
-                      .addAllCompatibleAccelerators(supportedAccelerators)
-                      .setDefaultMaxTokens(defaultMaxTokens)
-                      .setDefaultTopk(defaultTopk)
-                      .setDefaultTopp(defaultTopp)
-                      .setDefaultTemperature(defaultTemperature)
-                      .setSupportImage(supportImage)
-                      .setSupportAudio(supportAudio)
-                      .setSupportMobileActions(supportMobileActions)
-                      .setSupportTinyGarden(supportTinyGarden)
-                      .build()
-                  )
-                  .build()
+              val importedModel = AppImportedModel(
+                  fileName = fileName,
+                  fileSize = fileSize,
+                  llmConfig = AppLlmConfig(
+                      compatibleAccelerators = supportedAccelerators,
+                      defaultMaxTokens = defaultMaxTokens,
+                      defaultTopk = defaultTopk,
+                      defaultTopp = defaultTopp,
+                      defaultTemperature = defaultTemperature,
+                      supportImage = supportImage,
+                      supportAudio = supportAudio,
+                      supportMobileActions = supportMobileActions,
+                      supportTinyGarden = supportTinyGarden,
+                  ),
+              )
               onDone(importedModel)
             }
           ) {
@@ -303,9 +300,9 @@ fun ModelImportDialog(
 @Composable
 fun ModelImportingDialog(
   uri: Uri,
-  info: ImportedModel,
+  info: AppImportedModel,
   onDismiss: () -> Unit,
-  onDone: (ImportedModel) -> Unit,
+  onDone: (AppImportedModel) -> Unit,
 ) {
   var error by remember { mutableStateOf("") }
   val context = LocalContext.current

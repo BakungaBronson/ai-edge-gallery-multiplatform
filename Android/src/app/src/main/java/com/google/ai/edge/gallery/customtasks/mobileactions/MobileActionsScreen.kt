@@ -112,7 +112,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
@@ -222,7 +222,7 @@ private val TABS =
 fun MobileActionsScreen(
   task: Task,
   modelManagerViewModel: ModelManagerViewModel,
-  mobileActionsViewModel: MobileActionsViewModel = hiltViewModel(),
+  mobileActionsViewModel: MobileActionsViewModel = koinViewModel(),
   bottomPadding: Dp,
   setAppBarControlsDisabled: (Boolean) -> Unit,
   curActions: SnapshotStateList<Action>,
@@ -285,7 +285,7 @@ fun MainUi(
   viewModel: MobileActionsViewModel,
   setAppBarControlsDisabled: (Boolean) -> Unit,
   curActions: SnapshotStateList<Action>,
-  holdToDictateViewModel: HoldToDictateViewModel = hiltViewModel(),
+  holdToDictateViewModel: HoldToDictateViewModel = koinViewModel(),
   onProcessingStarted: () -> Unit,
 ) {
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()

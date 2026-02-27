@@ -16,7 +16,7 @@
 
 package com.google.ai.edge.gallery.ui.navigation
 
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 import android.os.Bundle
 import android.util.Log
@@ -183,7 +183,7 @@ fun GalleryNavHost(
     composable(route = ROUTE_HOMESCREEN) {
       HomeScreen(
         modelManagerViewModel = modelManagerViewModel,
-        tosViewModel = hiltViewModel(),
+        tosViewModel = koinViewModel(),
         enableAnimation = enableHomeScreenAnimation,
         navigateToTaskScreen = { task ->
           pickedTask = task
@@ -257,7 +257,7 @@ fun GalleryNavHost(
             customTask.MainScreen(
               data =
                 CustomTaskDataForBuiltinTask(
-                  modelManagerViewModel = modelManagerViewModel,
+                  modelManagerActions = modelManagerViewModel,
                   onNavUp = {
                     enableModelListAnimation = false
                     navController.navigateUp()
@@ -297,7 +297,7 @@ fun GalleryNavHost(
               customTask.MainScreen(
                 data =
                   CustomTaskData(
-                    modelManagerViewModel = modelManagerViewModel,
+                    modelManagerActions = modelManagerViewModel,
                     bottomPadding = bottomPadding,
                     setAppBarControlsDisabled = { disableAppBarControls = it },
                     setTopBarVisible = { hideTopBar = !it },

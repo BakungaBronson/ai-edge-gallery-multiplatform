@@ -20,20 +20,17 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.ai.edge.gallery.BuildConfig
+import com.google.ai.edge.gallery.data.AppBenchmarkResult
+import com.google.ai.edge.gallery.data.AppLlmBenchmarkBasicInfo
+import com.google.ai.edge.gallery.data.AppLlmBenchmarkResult
+import com.google.ai.edge.gallery.data.AppLlmBenchmarkStats
+import com.google.ai.edge.gallery.data.AppValueSeries
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.data.Model
-import com.google.ai.edge.gallery.proto.BenchmarkResult
-import com.google.ai.edge.gallery.proto.LlmBenchmarkBasicInfo
-import com.google.ai.edge.gallery.proto.LlmBenchmarkResult
-import com.google.ai.edge.gallery.proto.LlmBenchmarkStats
-import com.google.ai.edge.gallery.proto.ValueSeries
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.benchmark
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import javax.inject.Inject
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.random.Random
@@ -45,42 +42,12 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "AGBenchmarkVM"
 
-enum class Aggregation(val label: String) {
-  AVG(label = "avg"),
-  MEDIAN(label = "median"),
-  MIN(label = "min"),
-  MAX(label = "max"),
-  // P25(label = "p25"),
-  // P75(label = "p75"),
-}
-
-data class BenchmarkResultInfo(
-  val id: String,
-  val benchmarkResult: BenchmarkResult,
-  val expanded: Boolean = false,
-  val basicInfoExpanded: Boolean = true,
-  val statsExpanded: Boolean = true,
-  val aggregation: Aggregation = Aggregation.AVG,
-)
-
-data class BenchmarkUiState(
-  val results: List<BenchmarkResultInfo> = listOf(),
-  val baselineResult: BenchmarkResultInfo? = null,
-  val showResultsViewer: Boolean = false,
-  val running: Boolean = false,
-  val totalRunCount: Int = 0,
-  val completedRunCount: Int = 0,
-)
-
-@HiltViewModel
-class BenchmarkViewModel
-@Inject
-constructor(
-  @ApplicationContext private val appContext: Context,
+class BenchmarkViewModel(
+  private val appContext: Context,
   val dataStoreRepository: DataStoreRepository,
-) : ViewModel() {
-  protected val _uiState = MutableStateFlow(BenchmarkUiState())
-  val uiState = _uiState.asStateFlow()
+) : ViewModel(), BenchmarkActions {
+  private val _uiState = MutableStateFlow(BenchmarkUiState())
+  override val uiState = _uiState.asStateFlow()
 
   init {
     // Load results from storage.
@@ -139,7 +106,7 @@ constructor(
           "npu" -> Backend.NPU
           else -> Backend.CPU
         }
-      val modelPath = model.getPath(context = appContext)
+      val modelPath = model.getPath(basePath = appContext.getExternalFilesDir(null)?.absolutePath ?: "")
       for (i in 0 until runCount) {
         Log.d(TAG, "Start running #$i...")
         val benchmarkInfo =
@@ -173,31 +140,29 @@ constructor(
 
       // Create and add benchmark result.
       val basicInfo =
-        LlmBenchmarkBasicInfo.newBuilder()
-          .setStartMs(startMs)
-          .setEndMs(endMs)
-          .setModelName(model.name)
-          .setAccelerator(accelerator)
-          .setPrefillTokens(prefillTokens)
-          .setDecodeTokens(decodeTokens)
-          .setNumberOfRuns(runCount)
-          .setAppVersion(BuildConfig.VERSION_NAME)
-          .build()
+        AppLlmBenchmarkBasicInfo(
+          startMs = startMs,
+          endMs = endMs,
+          modelName = model.name,
+          accelerator = accelerator,
+          prefillTokens = prefillTokens,
+          decodeTokens = decodeTokens,
+          numberOfRuns = runCount,
+          appVersion = BuildConfig.VERSION_NAME,
+        )
       val stats =
-        LlmBenchmarkStats.newBuilder()
-          .setPrefillSpeed(calculateValueSeries(prefillSpeeds))
-          .setDecodeSpeed(calculateValueSeries(decodeSpeeds))
-          .setTimeToFirstToken(calculateValueSeries(timesToFirstToken))
-          .setFirstInitTimeMs(firstInitTime)
-          .setNonFirstInitTimeMs(calculateValueSeries(nonFirstInitTimes))
-          .build()
+        AppLlmBenchmarkStats(
+          prefillSpeed = calculateValueSeries(prefillSpeeds),
+          decodeSpeed = calculateValueSeries(decodeSpeeds),
+          timeToFirstToken = calculateValueSeries(timesToFirstToken),
+          firstInitTimeMs = firstInitTime,
+          nonFirstInitTimeMs = calculateValueSeries(nonFirstInitTimes),
+        )
 
       val result =
-        BenchmarkResult.newBuilder()
-          .setLlmResult(
-            LlmBenchmarkResult.newBuilder().setBaiscInfo(basicInfo).setStats(stats).build()
-          )
-          .build()
+        AppBenchmarkResult(
+          llmResult = AppLlmBenchmarkResult(basicInfo = basicInfo, stats = stats)
+        )
       val newId = addBenchmarkResult(result = result)
       collapseAll()
       setExpanded(id = newId, expanded = true)
@@ -206,7 +171,7 @@ constructor(
     }
   }
 
-  fun setShowResultsViewer(showResultsViewer: Boolean) {
+  override fun setShowResultsViewer(showResultsViewer: Boolean) {
     _uiState.update { _uiState.value.copy(showResultsViewer = showResultsViewer) }
   }
 
@@ -222,7 +187,7 @@ constructor(
     _uiState.update { _uiState.value.copy(completedRunCount = completedRunCount) }
   }
 
-  fun addBenchmarkResult(result: BenchmarkResult): String {
+  fun addBenchmarkResult(result: AppBenchmarkResult): String {
     val newResults = _uiState.value.results.toMutableList()
     // Add the new result to the beginning of the list.
     val newId = "${Random.nextDouble()}"
@@ -243,7 +208,7 @@ constructor(
     return newId
   }
 
-  fun setBenchmarkResults(results: List<BenchmarkResult>) {
+  fun setBenchmarkResults(results: List<AppBenchmarkResult>) {
     _uiState.update {
       _uiState.value.copy(
         results =
@@ -260,7 +225,7 @@ constructor(
     }
   }
 
-  fun deleteBenchmarkResult(id: String) {
+  override fun deleteBenchmarkResult(id: String) {
     val newResults = _uiState.value.results.toMutableList()
     val index = newResults.indexOfFirst { it.id == id }
     if (index != -1) {
@@ -277,7 +242,7 @@ constructor(
     }
   }
 
-  fun setBaseline(id: String) {
+  override fun setBaseline(id: String) {
     if (id == uiState.value.baselineResult?.id) {
       clearBaseline()
     } else {
@@ -290,11 +255,11 @@ constructor(
     }
   }
 
-  fun clearBaseline() {
+  override fun clearBaseline() {
     _uiState.update { _uiState.value.copy(baselineResult = null) }
   }
 
-  fun setExpanded(id: String, expanded: Boolean) {
+  override fun setExpanded(id: String, expanded: Boolean) {
     val newResults = _uiState.value.results.toMutableList()
     val index = newResults.indexOfFirst { it.id == id }
     if (index != -1) {
@@ -310,7 +275,7 @@ constructor(
     }
   }
 
-  fun setBasicInfoExpanded(id: String, expanded: Boolean) {
+  override fun setBasicInfoExpanded(id: String, expanded: Boolean) {
     val newResults = _uiState.value.results.toMutableList()
     val index = newResults.indexOfFirst { it.id == id }
     if (index != -1) {
@@ -321,7 +286,7 @@ constructor(
     }
   }
 
-  fun setStatsExpanded(id: String, expanded: Boolean) {
+  override fun setStatsExpanded(id: String, expanded: Boolean) {
     val newResults = _uiState.value.results.toMutableList()
     val index = newResults.indexOfFirst { it.id == id }
     if (index != -1) {
@@ -332,7 +297,7 @@ constructor(
     }
   }
 
-  fun expandAll() {
+  override fun expandAll() {
     val newResults = _uiState.value.results.toMutableList()
     for (i in newResults.indices) {
       newResults[i] =
@@ -341,7 +306,7 @@ constructor(
     _uiState.update { _uiState.value.copy(results = newResults) }
   }
 
-  fun collapseAll() {
+  override fun collapseAll() {
     val newResults = _uiState.value.results.toMutableList()
     for (i in newResults.indices) {
       newResults[i] =
@@ -350,7 +315,15 @@ constructor(
     _uiState.update { _uiState.value.copy(results = newResults) }
   }
 
-  fun setAggregation(id: String, aggregation: Aggregation) {
+  override fun getHasSeenBenchmarkComparisonHelp(): Boolean {
+    return dataStoreRepository.getHasSeenBenchmarkComparisonHelp()
+  }
+
+  override fun setHasSeenBenchmarkComparisonHelp(seen: Boolean) {
+    dataStoreRepository.setHasSeenBenchmarkComparisonHelp(seen)
+  }
+
+  override fun setAggregation(id: String, aggregation: Aggregation) {
     val newResults = _uiState.value.results.toMutableList()
     val index = newResults.indexOfFirst { it.id == id }
     if (index >= 0) {
@@ -362,9 +335,9 @@ constructor(
     _uiState.update { _uiState.value.copy(results = newResults) }
   }
 
-  private fun calculateValueSeries(values: List<Double>): ValueSeries {
+  private fun calculateValueSeries(values: List<Double>): AppValueSeries {
     if (values.isEmpty()) {
-      return ValueSeries.getDefaultInstance()
+      return AppValueSeries()
     }
 
     val sortedValues = values.sorted()
@@ -391,14 +364,14 @@ constructor(
     val pct25 = getPercentile(0.25)
     val pct75 = getPercentile(0.75)
 
-    return ValueSeries.newBuilder()
-      .addAllValue(values)
-      .setMin(min)
-      .setMax(max)
-      .setAvg(avg)
-      .setMedium(median) // Proto field is named 'medium'
-      .setPct25(pct25)
-      .setPct75(pct75)
-      .build()
+    return AppValueSeries(
+      values = values,
+      min = min,
+      max = max,
+      avg = avg,
+      median = median,
+      pct25 = pct25,
+      pct75 = pct75,
+    )
   }
 }

@@ -1,0 +1,33 @@
+name: iosApp
+options:
+  bundleIdPrefix: com.google.ai.edge.gallery
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+settings:
+  base:
+    FRAMEWORK_SEARCH_PATHS: $(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+    OTHER_LDFLAGS: $(inherited) -framework shared
+
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+    resources:
+      - path: iosApp/Assets.xcassets
+      - path: iosApp/LaunchScreen.storyboard
+    info:
+      path: iosApp/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.gallery
+        INFOPLIST_FILE: iosApp/Info.plist
+    preBuildScripts:
+      - name: "Build Shared KMP Framework"
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+        basedOnDependencyAnalysis: false

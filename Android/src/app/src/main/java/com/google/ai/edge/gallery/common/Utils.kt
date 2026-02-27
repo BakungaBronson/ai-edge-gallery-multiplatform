@@ -25,11 +25,8 @@ import android.os.Build
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import com.google.ai.edge.gallery.data.SAMPLE_RATE
-import com.google.gson.Gson
 import java.io.File
 import java.io.FileInputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -39,43 +36,6 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val TAG = "AGUtils"
-
-fun cleanUpMediapipeTaskErrorMessage(message: String): String {
-  val index = message.indexOf("=== Source Location Trace")
-  if (index >= 0) {
-    return message.substring(0, index)
-  }
-  return message
-}
-
-fun processLlmResponse(response: String): String {
-  return response.replace("\\n", "\n")
-}
-
-inline fun <reified T> getJsonResponse(url: String): JsonObjAndTextContent<T>? {
-  try {
-    val connection = URL(url).openConnection() as HttpURLConnection
-    connection.requestMethod = "GET"
-    connection.connect()
-
-    val responseCode = connection.responseCode
-    if (responseCode == HttpURLConnection.HTTP_OK) {
-      val inputStream = connection.inputStream
-      val response = inputStream.bufferedReader().use { it.readText() }
-
-      val gson = Gson()
-      val jsonObj = gson.fromJson(response, T::class.java)
-      return JsonObjAndTextContent(jsonObj = jsonObj, textContent = response)
-    } else {
-      Log.e("AGUtils", "HTTP error: $responseCode")
-    }
-  } catch (e: Exception) {
-    Log.e("AGUtils", "Error when getting json response: ${e.message}")
-    e.printStackTrace()
-  }
-
-  return null
-}
 
 fun convertWavToMonoWithMaxSeconds(
   context: Context,

@@ -130,7 +130,7 @@ fun ConversationHistoryPanel(
           horizontalAlignment = hAlign,
         ) messageColumn@{
           // Sender row.
-          var agentName = stringResource(task.agentNameRes)
+          var agentName = task.agentNameKey
           if (message.accelerator.isNotEmpty()) {
             agentName = "$agentName on ${message.accelerator}"
           }

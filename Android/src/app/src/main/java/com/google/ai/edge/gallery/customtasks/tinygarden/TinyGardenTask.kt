@@ -15,20 +15,19 @@
  */
 package com.google.ai.edge.gallery.customtasks.tinygarden
 
-import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LocalFlorist
 import androidx.compose.runtime.Composable
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.customtasks.common.CustomTaskData
 import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
+import com.google.ai.edge.gallery.platform.PlatformContext
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
 import com.google.ai.edge.litertlm.Contents
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -66,7 +65,7 @@ Tips:
 """
 
 /** A custom task that demonstrates how to use FunctionGemma to play a simple gardening game. */
-class TinyGardenTask @Inject constructor() : CustomTask {
+class TinyGardenTask : CustomTask {
   private val _updateChannel = Channel<TinyGardenCommand>(Channel.BUFFERED)
   private val commandFlow = _updateChannel.receiveAsFlow()
   private val tools =
@@ -89,21 +88,21 @@ class TinyGardenTask @Inject constructor() : CustomTask {
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/customtasks/tinygarden",
       category = Category.LLM,
       icon = Icons.Outlined.LocalFlorist,
-      agentNameRes = R.string.chat_agent_agent_name,
+      agentNameKey = "Agent",
       models = mutableListOf(),
       handleModelConfigChangesInTask = true,
       experimental = true,
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
   ) {
     clearQueue()
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = false,
       supportAudio = false,
@@ -115,7 +114,7 @@ class TinyGardenTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -129,7 +128,7 @@ class TinyGardenTask @Inject constructor() : CustomTask {
     val customTaskData = data as CustomTaskData
     TinyGardenScreen(
       task = task,
-      modelManagerViewModel = customTaskData.modelManagerViewModel,
+      modelManagerViewModel = customTaskData.modelManagerActions as ModelManagerViewModel,
       tools = tools,
       bottomPadding = customTaskData.bottomPadding,
       commandFlow = commandFlow,

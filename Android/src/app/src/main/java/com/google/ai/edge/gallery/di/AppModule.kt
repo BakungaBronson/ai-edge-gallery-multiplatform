@@ -16,147 +16,94 @@
 
 package com.google.ai.edge.gallery.di
 
-import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
-import androidx.datastore.core.Serializer
-import androidx.datastore.dataStoreFile
 import com.google.ai.edge.gallery.AppLifecycleProvider
-import com.google.ai.edge.gallery.BenchmarkResultsSerializer
-import com.google.ai.edge.gallery.CutoutsSerializer
 import com.google.ai.edge.gallery.GalleryLifecycleProvider
-import com.google.ai.edge.gallery.SettingsSerializer
-import com.google.ai.edge.gallery.UserDataSerializer
+import com.google.ai.edge.gallery.customtasks.common.CustomTask
+import com.google.ai.edge.gallery.customtasks.mobileactions.MobileActionsTask
+import com.google.ai.edge.gallery.customtasks.tinygarden.TinyGardenTask
 import com.google.ai.edge.gallery.data.DataStoreRepository
 import com.google.ai.edge.gallery.data.DefaultDataStoreRepository
 import com.google.ai.edge.gallery.data.DefaultDownloadRepository
 import com.google.ai.edge.gallery.data.DownloadRepository
-import com.google.ai.edge.gallery.proto.BenchmarkResults
-import com.google.ai.edge.gallery.proto.CutoutCollection
-import com.google.ai.edge.gallery.proto.Settings
-import com.google.ai.edge.gallery.proto.UserData
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
+import com.google.ai.edge.gallery.ui.benchmark.BenchmarkViewModel
+import com.google.ai.edge.gallery.ui.common.textandvoiceinput.HoldToDictateViewModel
+import com.google.ai.edge.gallery.ui.common.tos.TosViewModel
+import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioTask
+import com.google.ai.edge.gallery.ui.llmchat.LlmAskAudioViewModel
+import com.google.ai.edge.gallery.ui.llmchat.LlmAskImageTask
+import com.google.ai.edge.gallery.ui.llmchat.LlmAskImageViewModel
+import com.google.ai.edge.gallery.ui.llmchat.LlmChatTask
+import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModel
+import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnTask
+import com.google.ai.edge.gallery.ui.llmsingleturn.LlmSingleTurnViewModel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.customtasks.examplecustomtask.ExampleCustomTaskViewModel
+import com.google.ai.edge.gallery.customtasks.mobileactions.MobileActionsViewModel
+import com.google.ai.edge.gallery.customtasks.tinygarden.TinyGardenViewModel
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
+import org.koin.dsl.bind
+import org.koin.dsl.module
 
-@Module
-@InstallIn(SingletonComponent::class)
-internal object AppModule {
+val appModule = module {
+  // AppLifecycleProvider
+  single<AppLifecycleProvider> { GalleryLifecycleProvider() }
 
-  // Provides the SettingsSerializer
-  @Provides
-  @Singleton
-  fun provideSettingsSerializer(): Serializer<Settings> {
-    return SettingsSerializer
-  }
+  // DataStoreRepository (JSON-based)
+  single<DataStoreRepository> { DefaultDataStoreRepository(androidContext()) }
 
-  // Provides the CutoutSerializer
-  @Provides
-  @Singleton
-  fun provideCutoutSerializer(): Serializer<CutoutCollection> {
-    return CutoutsSerializer
-  }
+  // DownloadRepository
+  single<DownloadRepository> { DefaultDownloadRepository(androidContext(), get()) }
 
-  // Provides the UserDataSerializer
-  @Provides
-  @Singleton
-  fun provideUserDataSerializer(): Serializer<UserData> {
-    return UserDataSerializer
-  }
-
-  // Provides the BenchmarkResultsSerializer
-  @Provides
-  @Singleton
-  fun provideBenchmarkResultsSerializer(): Serializer<BenchmarkResults> {
-    return BenchmarkResultsSerializer
-  }
-
-  // Provides DataStore<Settings>
-  @Provides
-  @Singleton
-  fun provideSettingsDataStore(
-    @ApplicationContext context: Context,
-    settingsSerializer: Serializer<Settings>,
-  ): DataStore<Settings> {
-    return DataStoreFactory.create(
-      serializer = settingsSerializer,
-      produceFile = { context.dataStoreFile("settings.pb") },
+  // CustomTasks (replaces Hilt @IntoSet multibinding)
+  single<Set<CustomTask>> {
+    setOf(
+      LlmChatTask(),
+      LlmAskImageTask(),
+      LlmAskAudioTask(),
+      LlmSingleTurnTask(),
+      MobileActionsTask(),
+      TinyGardenTask(),
     )
   }
 
-  // Provides DataStore<CutoutCollection>
-  @Provides
-  @Singleton
-  fun provideCutoutsDataStore(
-    @ApplicationContext context: Context,
-    cutoutsSerializer: Serializer<CutoutCollection>,
-  ): DataStore<CutoutCollection> {
-    return DataStoreFactory.create(
-      serializer = cutoutsSerializer,
-      produceFile = { context.dataStoreFile("cutouts.pb") },
+  // ViewModels
+  viewModel {
+    ModelManagerViewModel(
+      downloadRepository = get(),
+      dataStoreRepository = get(),
+      lifecycleProvider = get(),
+      customTasks = get(),
+      context = androidContext(),
     )
   }
 
-  // Provides DataStore<UserData>
-  @Provides
-  @Singleton
-  fun provideUserDataDataStore(
-    @ApplicationContext context: Context,
-    userDataSerializer: Serializer<UserData>,
-  ): DataStore<UserData> {
-    return DataStoreFactory.create(
-      serializer = userDataSerializer,
-      produceFile = { context.dataStoreFile("user_data.pb") },
+  viewModel {
+    BenchmarkViewModel(
+      appContext = androidContext(),
+      dataStoreRepository = get(),
     )
   }
 
-  // Provides DataStore<BenchmarkResults>
-  @Provides
-  @Singleton
-  fun provideBenchmarkResultsDataStore(
-    @ApplicationContext context: Context,
-    benchmarkResultsSerializer: Serializer<BenchmarkResults>,
-  ): DataStore<BenchmarkResults> {
-    return DataStoreFactory.create(
-      serializer = benchmarkResultsSerializer,
-      produceFile = { context.dataStoreFile("benchmark_results.pb") },
+  viewModel { TosViewModel(dataStoreRepository = get()) }
+
+  viewModel { HoldToDictateViewModel(context = androidContext()) }
+
+  viewModel { LlmChatViewModel() }
+  viewModel { LlmAskImageViewModel() }
+  viewModel { LlmAskAudioViewModel() }
+  viewModel { LlmSingleTurnViewModel() }
+  viewModel { ExampleCustomTaskViewModel() }
+
+  viewModel {
+    MobileActionsViewModel(appContext = androidContext())
+  }
+
+  viewModel {
+    TinyGardenViewModel(
+      context = androidContext(),
+      dataStoreRepository = get(),
     )
-  }
-
-  // Provides AppLifecycleProvider
-  @Provides
-  @Singleton
-  fun provideAppLifecycleProvider(): AppLifecycleProvider {
-    return GalleryLifecycleProvider()
-  }
-
-  // Provides DataStoreRepository
-  @Provides
-  @Singleton
-  fun provideDataStoreRepository(
-    dataStore: DataStore<Settings>,
-    userDataDataStore: DataStore<UserData>,
-    cutoutsDataStore: DataStore<CutoutCollection>,
-    benchmarkResultsStore: DataStore<BenchmarkResults>,
-  ): DataStoreRepository {
-    return DefaultDataStoreRepository(
-      dataStore,
-      userDataDataStore,
-      cutoutsDataStore,
-      benchmarkResultsStore,
-    )
-  }
-
-  // Provides DownloadRepository
-  @Provides
-  @Singleton
-  fun provideDownloadRepository(
-    @ApplicationContext context: Context,
-    lifecycleProvider: AppLifecycleProvider,
-  ): DownloadRepository {
-    return DefaultDownloadRepository(context, lifecycleProvider)
   }
 }

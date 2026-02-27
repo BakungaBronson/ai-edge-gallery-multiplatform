@@ -16,7 +16,6 @@
 
 package com.google.ai.edge.gallery.customtasks.examplecustomtask
 
-import android.content.Context
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.runtime.Composable
@@ -25,9 +24,9 @@ import com.google.ai.edge.gallery.customtasks.common.CustomTaskData
 import com.google.ai.edge.gallery.data.CategoryInfo
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
-import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.platform.PlatformContext
+import com.google.ai.edge.gallery.platform.getAppFilesDirectory
 import java.io.File
-import javax.inject.Inject
 import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +56,7 @@ import kotlinx.coroutines.launch
  *   model's content. It uses a `ViewModel` to manage UI state, such as text color, and reacts to
  *   changes in model configurations, like font size.
  */
-class ExampleCustomTask @Inject constructor() : CustomTask {
+class ExampleCustomTask : CustomTask {
   override val task: Task =
     Task(
       id = "example_custom_task",
@@ -97,7 +96,7 @@ class ExampleCustomTask @Inject constructor() : CustomTask {
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
@@ -105,13 +104,14 @@ class ExampleCustomTask @Inject constructor() : CustomTask {
     coroutineScope.launch(Dispatchers.IO) {
       model.instance = null
       try {
+        val basePath = context.getAppFilesDirectory()
         // Read model file content.
         val file =
           // Remote model
           if (model.localFileRelativeDirPathOverride.isEmpty())
-            File(model.getPath(context = context))
+            File(model.getPath(basePath = basePath))
           // Local model
-          else File(model.getPath(context = context, fileName = "model.txt"))
+          else File(model.getPath(basePath = basePath, fileName = "model.txt"))
         var content = file.readText()
 
         // Use the value from model's configuration to cap the max number of characters for the
@@ -141,7 +141,7 @@ class ExampleCustomTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -163,8 +163,7 @@ class ExampleCustomTask @Inject constructor() : CustomTask {
     // This allows the UI to react to changes, such as displaying the model's content
     // only after it has been successfully initialized.
     val myData = data as CustomTaskData
-    val modelManagerViewModel: ModelManagerViewModel = myData.modelManagerViewModel
 
-    ExampleCustomTaskScreen(modelManagerViewModel = modelManagerViewModel)
+    ExampleCustomTaskScreen(modelManagerViewModel = myData.modelManagerActions)
   }
 }

@@ -18,26 +18,23 @@ package com.google.ai.edge.gallery.ui.common.tos
 
 import androidx.lifecycle.ViewModel
 import com.google.ai.edge.gallery.data.DataStoreRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 
 /** ViewModel responsible for managing terms of services related tasks. */
-@HiltViewModel
-open class TosViewModel @Inject constructor(private val dataStoreRepository: DataStoreRepository) :
-  ViewModel() {
-  fun getIsTosAccepted(): Boolean {
+open class TosViewModel(private val dataStoreRepository: DataStoreRepository) :
+  ViewModel(), TosActions {
+  override fun getIsTosAccepted(): Boolean {
     return dataStoreRepository.isTosAccepted()
   }
 
-  fun acceptTos() {
+  override fun acceptTos() {
     dataStoreRepository.acceptTos()
   }
 
-  fun getIsGemmaTermsOfUseAccepted(): Boolean {
+  override fun getIsGemmaTermsOfUseAccepted(): Boolean {
     return dataStoreRepository.isGemmaTermsOfUseAccepted()
   }
 
-  fun acceptGemmaTermsOfUse() {
+  override fun acceptGemmaTermsOfUse() {
     dataStoreRepository.acceptGemmaTermsOfUse()
   }
 }

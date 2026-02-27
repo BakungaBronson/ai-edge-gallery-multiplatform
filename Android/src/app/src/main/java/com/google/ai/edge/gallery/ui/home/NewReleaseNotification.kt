@@ -45,7 +45,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.ai.edge.gallery.BuildConfig
-import com.google.ai.edge.gallery.common.getJsonResponse
+import com.google.ai.edge.gallery.network.getJsonResponse
 import com.google.ai.edge.gallery.ui.common.ClickableLink
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +55,7 @@ import kotlinx.coroutines.withContext
 private const val TAG = "AGNewReleaseNotifi"
 private const val REPO = "google-ai-edge/gallery"
 
+@kotlinx.serialization.Serializable
 data class ReleaseInfo(val html_url: String, val tag_name: String)
 
 @Composable

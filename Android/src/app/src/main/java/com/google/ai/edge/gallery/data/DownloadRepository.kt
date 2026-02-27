@@ -50,25 +50,6 @@ private const val TASK_ID_TAG = "taskId"
 
 data class AGWorkInfo(val taskId: String, val modelName: String, val workId: String)
 
-interface DownloadRepository {
-  fun downloadModel(
-    task: Task?,
-    model: Model,
-    onStatusUpdated: (model: Model, status: ModelDownloadStatus) -> Unit,
-  )
-
-  fun cancelDownloadModel(model: Model)
-
-  fun cancelAll(onComplete: () -> Unit)
-
-  fun observerWorkerProgress(
-    workerId: UUID,
-    task: Task?,
-    model: Model,
-    onStatusUpdated: (model: Model, status: ModelDownloadStatus) -> Unit,
-  )
-}
-
 private const val DOWNLOAD_FROM_GLOBAL_MODEL_MANAGER_TASK_ID = "___"
 
 /**
@@ -159,7 +140,7 @@ class DefaultDownloadRepository(
       .addListener({ onComplete() }, Executors.newSingleThreadExecutor())
   }
 
-  override fun observerWorkerProgress(
+  fun observerWorkerProgress(
     workerId: UUID,
     task: Task?,
     model: Model,

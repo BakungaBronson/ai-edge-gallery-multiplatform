@@ -19,6 +19,7 @@ package com.google.ai.edge.gallery.ui.modelmanager
 import android.content.Context
 import android.util.Log
 import androidx.activity.result.ActivityResult
+import com.google.ai.edge.gallery.platform.PlatformContext
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -26,7 +27,8 @@ import com.google.ai.edge.gallery.AppLifecycleProvider
 import com.google.ai.edge.gallery.BuildConfig
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.common.ProjectConfig
-import com.google.ai.edge.gallery.common.getJsonResponse
+import com.google.ai.edge.gallery.network.getJsonResponse
+import com.google.ai.edge.gallery.network.getUrlResponseCode
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.data.Accelerator
 import com.google.ai.edge.gallery.data.BuiltInTaskId
@@ -47,16 +49,11 @@ import com.google.ai.edge.gallery.data.TMP_FILE_EXT
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.data.ValueType
 import com.google.ai.edge.gallery.data.createLlmChatConfigs
-import com.google.ai.edge.gallery.proto.AccessTokenData
-import com.google.ai.edge.gallery.proto.ImportedModel
-import com.google.ai.edge.gallery.proto.Theme
-import com.google.gson.Gson
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.google.ai.edge.gallery.data.AppAccessTokenData
+import com.google.ai.edge.gallery.data.AppImportedModel
+import com.google.ai.edge.gallery.data.AppTheme
+import kotlinx.serialization.json.Json
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import javax.inject.Inject
 import kotlin.collections.sortedWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,72 +75,9 @@ private const val ALLOWLIST_BASE_URL =
 
 private const val TEST_MODEL_ALLOW_LIST = ""
 
-data class ModelInitializationStatus(
-  val status: ModelInitializationStatusType,
-  var error: String = "",
-)
-
-enum class ModelInitializationStatusType {
-  NOT_INITIALIZED,
-  INITIALIZING,
-  INITIALIZED,
-  ERROR,
-}
-
-enum class TokenStatus {
-  NOT_STORED,
-  EXPIRED,
-  NOT_EXPIRED,
-}
-
-enum class TokenRequestResultType {
-  FAILED,
-  SUCCEEDED,
-  USER_CANCELLED,
-}
-
-data class TokenStatusAndData(val status: TokenStatus, val data: AccessTokenData?)
-
-data class TokenRequestResult(val status: TokenRequestResultType, val errorMessage: String? = null)
-
-data class ModelManagerUiState(
-  /** A list of tasks available in the application. */
-  val tasks: List<Task>,
-
-  /** Tasks grouped by category. */
-  val tasksByCategory: Map<String, List<Task>>,
-
-  /** A map that tracks the download status of each model, indexed by model name. */
-  val modelDownloadStatus: Map<String, ModelDownloadStatus>,
-
-  /** A map that tracks the initialization status of each model, indexed by model name. */
-  val modelInitializationStatus: Map<String, ModelInitializationStatus>,
-
-  /** Whether the app is loading and processing the model allowlist. */
-  val loadingModelAllowlist: Boolean = true,
-
-  /** The error message when loading the model allowlist. */
-  val loadingModelAllowlistError: String = "",
-
-  /** The currently selected model. */
-  val selectedModel: Model = EMPTY_MODEL,
-
-  /** The history of text inputs entered by the user. */
-  val textInputHistory: List<String> = listOf(),
-  val configValuesUpdateTrigger: Long = 0L,
-  // Updated when model is imported of an imported model is deleted.
-  val modelImportingUpdateTrigger: Long = 0L,
-) {
-  fun isModelInitialized(model: Model): Boolean {
-    return modelInitializationStatus[model.name]?.status ==
-      ModelInitializationStatusType.INITIALIZED
-  }
-
-  fun isModelInitializing(model: Model): Boolean {
-    return modelInitializationStatus[model.name]?.status ==
-      ModelInitializationStatusType.INITIALIZING
-  }
-}
+// Data types (ModelInitializationStatus, ModelInitializationStatusType, TokenStatus,
+// TokenRequestResultType, TokenStatusAndData, TokenRequestResult, ModelManagerUiState)
+// are in shared module: com.google.ai.edge.gallery.ui.modelmanager
 
 private val RESET_CONVERSATION_TURN_COUNT_CONFIG =
   NumberSliderConfig(
@@ -172,19 +106,16 @@ private val PREDEFINED_LLM_TASK_ORDER =
  * cleaning up models. It also manages the UI state for model management, including the list of
  * tasks, models, download statuses, and initialization statuses.
  */
-@HiltViewModel
-open class ModelManagerViewModel
-@Inject
-constructor(
+open class ModelManagerViewModel(
   private val downloadRepository: DownloadRepository,
   private val dataStoreRepository: DataStoreRepository,
   private val lifecycleProvider: AppLifecycleProvider,
-  private val customTasks: Set<@JvmSuppressWildcards CustomTask>,
-  @ApplicationContext private val context: Context,
-) : ViewModel() {
+  private val customTasks: Set<CustomTask>,
+  private val context: Context,
+) : ViewModel(), ModelManagerActions {
   private val externalFilesDir = context.getExternalFilesDir(null)
   protected val _uiState = MutableStateFlow(createEmptyUiState())
-  val uiState = _uiState.asStateFlow()
+  override val uiState = _uiState.asStateFlow()
 
   val authService = AuthorizationService(context)
   var curAccessToken: String = ""
@@ -193,7 +124,7 @@ constructor(
     authService.dispose()
   }
 
-  fun getTaskById(id: String): Task? {
+  override fun getTaskById(id: String): Task? {
     return uiState.value.tasks.find { it.id == id }
   }
 
@@ -205,7 +136,7 @@ constructor(
     return customTasks.find { it.task.id == id }
   }
 
-  fun getModelByName(name: String): Model? {
+  override fun getModelByName(name: String): Model? {
     for (task in uiState.value.tasks) {
       for (model in task.models) {
         if (model.name == name) {
@@ -226,7 +157,7 @@ constructor(
     return allModels.toList().sortedBy { it.displayName.ifEmpty { it.name } }
   }
 
-  fun getAllDownloadedModels(): List<Model> {
+  override fun getAllDownloadedModels(): List<Model> {
     return getAllModels().filter {
       uiState.value.modelDownloadStatus[it.name]?.status == ModelDownloadStatusType.SUCCEEDED &&
         it.isLlm
@@ -248,15 +179,15 @@ constructor(
     }
   }
 
-  fun updateConfigValuesUpdateTrigger() {
+  override fun updateConfigValuesUpdateTrigger() {
     _uiState.update { _uiState.value.copy(configValuesUpdateTrigger = System.currentTimeMillis()) }
   }
 
-  fun selectModel(model: Model) {
+  override fun selectModel(model: Model) {
     _uiState.update { _uiState.value.copy(selectedModel = model) }
   }
 
-  fun downloadModel(task: Task?, model: Model) {
+  override fun downloadModel(task: Task?, model: Model) {
     // Update status.
     setDownloadStatus(
       curModel = model,
@@ -274,12 +205,12 @@ constructor(
     )
   }
 
-  fun cancelDownloadModel(model: Model) {
+  override fun cancelDownloadModel(model: Model) {
     downloadRepository.cancelDownloadModel(model)
     deleteModel(model = model)
   }
 
-  fun deleteModel(model: Model) {
+  override fun deleteModel(model: Model) {
     if (model.imported) {
       deleteFilesFromImportDir(model.downloadFileName)
     } else {
@@ -374,7 +305,7 @@ constructor(
       // Call the model initialization function.
       getCustomTaskByTaskId(id = task.id)
         ?.initializeModelFn(
-          context = context,
+          context = PlatformContext(context),
           coroutineScope = viewModelScope,
           model = model,
           onDone = onDone,
@@ -398,7 +329,7 @@ constructor(
       }
       getCustomTaskByTaskId(id = task.id)
         ?.cleanUpModelFn(
-          context = context,
+          context = PlatformContext(context),
           coroutineScope = viewModelScope,
           model = model,
           onDone = onDone,
@@ -414,6 +345,15 @@ constructor(
         model.cleanUpAfterInit = true
       }
     }
+  }
+
+  // ModelManagerActions interface implementations (context-free wrappers).
+  override fun initializeModel(task: Task, model: Model, force: Boolean) {
+    initializeModel(context = context, task = task, model = model, force = force)
+  }
+
+  override fun cleanupModel(task: Task, model: Model, onDone: () -> Unit) {
+    cleanupModel(context = context, task = task, model = model, onDone = onDone)
   }
 
   fun setDownloadStatus(curModel: Model, status: ModelDownloadStatus) {
@@ -441,7 +381,7 @@ constructor(
     }
   }
 
-  fun addTextInputHistory(text: String) {
+  override fun addTextInputHistory(text: String) {
     if (uiState.value.textInputHistory.indexOf(text) < 0) {
       val newHistory = uiState.value.textInputHistory.toMutableList()
       newHistory.add(0, text)
@@ -481,32 +421,19 @@ constructor(
     dataStoreRepository.saveTextInputHistory(_uiState.value.textInputHistory)
   }
 
-  fun readThemeOverride(): Theme {
+  fun readThemeOverride(): AppTheme {
     return dataStoreRepository.readTheme()
   }
 
-  fun saveThemeOverride(theme: Theme) {
+  fun saveThemeOverride(theme: AppTheme) {
     dataStoreRepository.saveTheme(theme = theme)
   }
 
-  fun getModelUrlResponse(model: Model, accessToken: String? = null): Int {
-    try {
-      val url = URL(model.url)
-      val connection = url.openConnection() as HttpURLConnection
-      if (accessToken != null) {
-        connection.setRequestProperty("Authorization", "Bearer $accessToken")
-      }
-      connection.connect()
-
-      // Report the result.
-      return connection.responseCode
-    } catch (e: Exception) {
-      Log.e(TAG, "$e")
-      return -1
-    }
+  suspend fun getModelUrlResponse(model: Model, accessToken: String? = null): Int {
+    return getUrlResponseCode(url = model.url, accessToken = accessToken)
   }
 
-  fun addImportedLlmModel(info: ImportedModel) {
+  fun addImportedLlmModel(info: AppImportedModel) {
     Log.d(TAG, "adding imported llm model: $info")
 
     // Create model.
@@ -731,11 +658,12 @@ constructor(
             // Start download for partially downloaded models.
             val downloadStatus = uiState.value.modelDownloadStatus[model.name]?.status
             if (downloadStatus == ModelDownloadStatusType.PARTIALLY_DOWNLOADED) {
-              if (
+              val tokenData = tokenStatusAndData.data
+            if (
                 tokenStatusAndData.status == TokenStatus.NOT_EXPIRED &&
-                  tokenStatusAndData.data != null
+                  tokenData != null
               ) {
-                model.accessToken = tokenStatusAndData.data.accessToken
+                model.accessToken = tokenData.accessToken
               }
               Log.d(TAG, "Sending a new download request for '${model.name}'")
               downloadRepository.downloadModel(
@@ -752,7 +680,7 @@ constructor(
     }
   }
 
-  fun loadModelAllowlist() {
+  override fun loadModelAllowlist() {
     _uiState.update {
       uiState.value.copy(loadingModelAllowlist = true, loadingModelAllowlistError = "")
     }
@@ -769,8 +697,8 @@ constructor(
         // Local test only.
         if (TEST_MODEL_ALLOW_LIST.isNotEmpty()) {
           Log.d(TAG, "Loading local model allowlist for testing.")
-          val gson = Gson()
-          modelAllowlist = gson.fromJson(TEST_MODEL_ALLOW_LIST, ModelAllowlist::class.java)
+          val json = Json { ignoreUnknownKeys = true }
+          modelAllowlist = json.decodeFromString<ModelAllowlist>(TEST_MODEL_ALLOW_LIST)
         }
 
         if (modelAllowlist == null) {
@@ -855,7 +783,7 @@ constructor(
     }
   }
 
-  fun clearLoadModelAllowlistError() {
+  override fun clearLoadModelAllowlistError() {
     val curTasks = customTasks.map { it.task }
     processTasks()
     _uiState.update {
@@ -896,8 +824,8 @@ constructor(
         val content = file.readText()
         Log.d(TAG, "Model allowlist content from local file: $content")
 
-        val gson = Gson()
-        return gson.fromJson(content, ModelAllowlist::class.java)
+        val json = Json { ignoreUnknownKeys = true }
+        return json.decodeFromString<ModelAllowlist>(content)
       }
     } catch (e: Exception) {
       Log.e(TAG, "failed to read model allowlist from disk", e)
@@ -914,7 +842,7 @@ constructor(
 
     // A model is partially downloaded when the tmp file exists.
     val tmpFilePath =
-      model.getPath(context = context, fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
+      model.getPath(basePath = context.getExternalFilesDir(null)?.absolutePath ?: "", fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
     return File(tmpFilePath).exists()
   }
 
@@ -995,9 +923,10 @@ constructor(
     )
   }
 
-  private fun createModelFromImportedModelInfo(info: ImportedModel): Model {
+  private fun createModelFromImportedModelInfo(info: AppImportedModel): Model {
+    val llmConfig = info.llmConfig ?: com.google.ai.edge.gallery.data.AppLlmConfig()
     val accelerators: MutableList<Accelerator> =
-      info.llmConfig.compatibleAcceleratorsList
+      llmConfig.compatibleAccelerators
         .mapNotNull { acceleratorLabel ->
           when (acceleratorLabel.trim()) {
             Accelerator.GPU.label -> Accelerator.GPU
@@ -1006,20 +935,20 @@ constructor(
           }
         }
         .toMutableList()
-    val llmMaxToken = info.llmConfig.defaultMaxTokens
+    val llmMaxToken = llmConfig.defaultMaxTokens
     val configs: MutableList<Config> =
       createLlmChatConfigs(
           defaultMaxToken = llmMaxToken,
-          defaultTopK = info.llmConfig.defaultTopk,
-          defaultTopP = info.llmConfig.defaultTopp,
-          defaultTemperature = info.llmConfig.defaultTemperature,
+          defaultTopK = llmConfig.defaultTopk,
+          defaultTopP = llmConfig.defaultTopp,
+          defaultTemperature = llmConfig.defaultTemperature,
           accelerators = accelerators,
         )
         .toMutableList()
-    val llmSupportImage = info.llmConfig.supportImage
-    val llmSupportAudio = info.llmConfig.supportAudio
-    val llmSupportTinyGarden = info.llmConfig.supportTinyGarden
-    val llmSupportMobileActions = info.llmConfig.supportMobileActions
+    val llmSupportImage = llmConfig.supportImage
+    val llmSupportAudio = llmConfig.supportAudio
+    val llmSupportTinyGarden = llmConfig.supportTinyGarden
+    val llmSupportMobileActions = llmConfig.supportMobileActions
     val model =
       Model(
         name = info.fileName,
@@ -1091,11 +1020,8 @@ constructor(
   }
 
   private fun getCategoryLabel(context: Context, category: CategoryInfo): String {
-    val stringRes = category.labelStringRes
     val label = category.label
-    if (stringRes != null) {
-      return context.getString(stringRes)
-    } else if (label != null) {
+    if (label.isNotEmpty()) {
       return label
     }
     return context.getString(R.string.category_unlabeled)
@@ -1128,7 +1054,7 @@ constructor(
     if (isModelPartiallyDownloaded(model = model)) {
       status = ModelDownloadStatusType.PARTIALLY_DOWNLOADED
       val tmpFilePath =
-        model.getPath(context = context, fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
+        model.getPath(basePath = context.getExternalFilesDir(null)?.absolutePath ?: "", fileName = "${model.downloadFileName}.$TMP_FILE_EXT")
       val tmpFile = File(tmpFilePath)
       receivedBytes = tmpFile.length()
       totalBytes = model.totalBytes

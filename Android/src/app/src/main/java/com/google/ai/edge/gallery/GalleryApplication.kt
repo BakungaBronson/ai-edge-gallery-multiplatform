@@ -18,18 +18,24 @@ package com.google.ai.edge.gallery
 
 import android.app.Application
 import com.google.ai.edge.gallery.data.DataStoreRepository
+import com.google.ai.edge.gallery.di.appModule
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
 import com.google.firebase.FirebaseApp
-import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
+import org.koin.android.ext.android.inject
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
 
-@HiltAndroidApp
 class GalleryApplication : Application() {
 
-  @Inject lateinit var dataStoreRepository: DataStoreRepository
+  private val dataStoreRepository: DataStoreRepository by inject()
 
   override fun onCreate() {
     super.onCreate()
+
+    startKoin {
+      androidContext(this@GalleryApplication)
+      modules(appModule)
+    }
 
     // Load saved theme.
     ThemeSettings.themeOverride.value = dataStoreRepository.readTheme()

@@ -16,11 +16,10 @@
 
 package com.google.ai.edge.gallery.ui.llmsingleturn
 
-import android.content.Context
+import com.google.ai.edge.gallery.platform.PlatformContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.runtime.Composable
-import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.customtasks.common.CustomTaskDataForBuiltinTask
 import com.google.ai.edge.gallery.data.BuiltInTaskId
@@ -28,15 +27,10 @@ import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
-import javax.inject.Inject
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import kotlinx.coroutines.CoroutineScope
 
-class LlmSingleTurnTask @Inject constructor() : CustomTask {
+class LlmSingleTurnTask : CustomTask {
   override val task: Task =
     Task(
       id = BuiltInTaskId.LLM_PROMPT_LAB,
@@ -48,17 +42,17 @@ class LlmSingleTurnTask @Inject constructor() : CustomTask {
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
       sourceCodeUrl =
         "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
-      textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
+      textInputPlaceHolderKey = "Type prompt…",
     )
 
   override fun initializeModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: (String) -> Unit,
   ) {
     LlmChatModelHelper.initialize(
-      context = context,
+      context = context.context,
       model = model,
       supportImage = false,
       supportAudio = false,
@@ -67,7 +61,7 @@ class LlmSingleTurnTask @Inject constructor() : CustomTask {
   }
 
   override fun cleanUpModelFn(
-    context: Context,
+    context: PlatformContext,
     coroutineScope: CoroutineScope,
     model: Model,
     onDone: () -> Unit,
@@ -79,18 +73,9 @@ class LlmSingleTurnTask @Inject constructor() : CustomTask {
   override fun MainScreen(data: Any) {
     val myData = data as CustomTaskDataForBuiltinTask
     LlmSingleTurnScreen(
-      modelManagerViewModel = myData.modelManagerViewModel,
+      modelManagerViewModel = myData.modelManagerActions as ModelManagerViewModel,
       navigateUp = myData.onNavUp,
     )
   }
 }
 
-@Module
-@InstallIn(SingletonComponent::class) // Or another component that fits your scope
-internal object LlmSingleTurnTaskModule {
-  @Provides
-  @IntoSet
-  fun provideTask(): CustomTask {
-    return LlmSingleTurnTask()
-  }
-}

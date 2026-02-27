@@ -73,7 +73,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatus
@@ -84,7 +84,6 @@ import com.google.ai.edge.gallery.ui.common.tos.TosViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.ui.modelmanager.TokenRequestResultType
 import com.google.ai.edge.gallery.ui.modelmanager.TokenStatus
-import java.net.HttpURLConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -128,7 +127,7 @@ fun DownloadAndTryButton(
   modelManagerViewModel: ModelManagerViewModel,
   onClicked: () -> Unit,
   modifier: Modifier = Modifier,
-  tosViewModel: TosViewModel = hiltViewModel(),
+  tosViewModel: TosViewModel = koinViewModel(),
   modifierWhenExpanded: Modifier = Modifier,
   compact: Boolean = false,
   canShowTryIt: Boolean = true,
@@ -203,7 +202,7 @@ fun DownloadAndTryButton(
                   modelManagerViewModel.getModelUrlResponse(
                     model = model,
                     accessToken = modelManagerViewModel.curAccessToken,
-                  ) == HttpURLConnection.HTTP_FORBIDDEN
+                  ) == 403
                 ) {
                   Log.d(TAG, "Model '${model.name}' needs user agreement ack.")
                   showAgreementAckSheet = true
@@ -264,7 +263,7 @@ fun DownloadAndTryButton(
             "Model '${model.name}' is from HuggingFace. Checking if the url needs auth to download",
           )
           val firstResponseCode = modelManagerViewModel.getModelUrlResponse(model = model)
-          if (firstResponseCode == HttpURLConnection.HTTP_OK) {
+          if (firstResponseCode == 200) {
             Log.d(TAG, "Model '${model.name}' doesn't need auth. Start downloading the model...")
             withContext(Dispatchers.Main) { startDownload(null) }
             return@launch
@@ -296,7 +295,7 @@ fun DownloadAndTryButton(
                   model = model,
                   accessToken = tokenStatusAndData.data!!.accessToken,
                 )
-              if (responseCode == HttpURLConnection.HTTP_OK) {
+              if (responseCode == 200) {
                 // Download url is accessible. Download the model.
                 Log.d(TAG, "Download url is accessible with the current token.")
 
@@ -333,7 +332,7 @@ fun DownloadAndTryButton(
   }
 
   val checkMemoryAndClickDownloadButton = {
-    if (isMemoryLow(context = context, model = model)) {
+    if (isMemoryLow(model = model)) {
       showMemoryWarning = true
     } else {
       handleClickButton()

@@ -21,10 +21,7 @@ plugins {
   alias(libs.plugins.kotlin.android)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.kotlin.serialization)
-  alias(libs.plugins.protobuf)
-  alias(libs.plugins.hilt.application)
   alias(libs.plugins.oss.licenses)
-  kotlin("kapt")
 }
 
 android {
@@ -69,6 +66,7 @@ android {
 }
 
 dependencies {
+  implementation(project(":shared"))
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
@@ -82,8 +80,6 @@ dependencies {
   implementation(libs.kotlin.reflect)
   implementation(libs.material.icon.extended)
   implementation(libs.androidx.work.runtime)
-  implementation(libs.androidx.datastore)
-  implementation(libs.com.google.code.gson)
   implementation(libs.androidx.lifecycle.process)
   implementation(libs.androidx.security.crypto)
   implementation(libs.androidx.webkit)
@@ -99,25 +95,18 @@ dependencies {
   implementation(libs.camerax.view)
   implementation(libs.openid.appauth)
   implementation(libs.androidx.splashscreen)
-  implementation(libs.protobuf.javalite)
-  implementation(libs.hilt.android)
-  implementation(libs.hilt.navigation.compose)
+  implementation(libs.koin.android)
+  implementation(libs.koin.compose)
+  implementation(libs.koin.compose.viewmodel)
   implementation(libs.play.services.oss.licenses)
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.analytics)
   implementation(libs.androidx.exifinterface)
-  kapt(libs.hilt.android.compiler)
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.espresso.core)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.ui.test.junit4)
-  androidTestImplementation(libs.hilt.android.testing)
   debugImplementation(libs.androidx.ui.tooling)
   debugImplementation(libs.androidx.ui.test.manifest)
-}
-
-protobuf {
-  protoc { artifact = "com.google.protobuf:protoc:4.26.1" }
-  generateProtoTasks { all().forEach { it.plugins { create("java") { option("lite") } } } }
 }

@@ -16,7 +16,7 @@
 
 package com.google.ai.edge.gallery.ui.llmsingleturn
 
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 // import androidx.compose.ui.tooling.preview.Preview
 // import com.google.ai.edge.gallery.ui.preview.PreviewLlmSingleTurnViewModel
@@ -71,7 +71,7 @@ fun LlmSingleTurnScreen(
   modelManagerViewModel: ModelManagerViewModel,
   navigateUp: () -> Unit,
   modifier: Modifier = Modifier,
-  viewModel: LlmSingleTurnViewModel = hiltViewModel(),
+  viewModel: LlmSingleTurnViewModel = koinViewModel(),
 ) {
   val task = modelManagerViewModel.getTaskById(id = BuiltInTaskId.LLM_PROMPT_LAB)!!
   val modelManagerUiState by modelManagerViewModel.uiState.collectAsState()
