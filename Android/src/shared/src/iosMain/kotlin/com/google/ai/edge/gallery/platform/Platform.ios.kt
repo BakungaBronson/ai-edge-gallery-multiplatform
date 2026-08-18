@@ -18,14 +18,17 @@ package com.google.ai.edge.gallery.platform
 
 import io.github.aakira.napier.Napier
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.datetime.Clock
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import platform.Foundation.NSCachesDirectory
-import platform.Foundation.NSDate
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIDevice
+import platform.posix.gettimeofday
+import platform.posix.timeval
 
 @OptIn(ExperimentalForeignApi::class)
 actual class PlatformContext
@@ -55,7 +58,18 @@ actual fun isDeviceModel(modelName: String): Boolean {
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun currentTimeMillis(): Long {
-  return Clock.System.now().toEpochMilliseconds()
+  // kotlinx.datetime.Clock.System doesn't resolve on this target with this project's Kotlin/
+  // kotlinx-datetime pairing (the stdlib's own kotlin.time.Clock shadows it in a way the pinned
+  // kotlinx-datetime version doesn't handle here, and newer kotlinx-datetime releases remove
+  // kotlinx.datetime.Clock in favor of an experimental alias — verified by actually attempting
+  // both), and this Linux-hosted Kotlin/Native toolchain's bundled Foundation stub doesn't bind
+  // NSDate.timeIntervalSince1970 either. gettimeofday is plain POSIX, always available
+  // regardless of platform-library quirks, and gives the same epoch-millis result.
+  return memScoped {
+    val tv = alloc<timeval>()
+    gettimeofday(tv.ptr, null)
+    tv.tv_sec * 1000L + tv.tv_usec / 1000L
+  }
 }
 
 actual fun logAnalyticsEvent(eventName: String, params: Map<String, String>) {
