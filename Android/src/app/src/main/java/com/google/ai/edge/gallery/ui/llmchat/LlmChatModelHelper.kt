@@ -27,20 +27,18 @@ import com.google.ai.edge.gallery.data.DEFAULT_TEMPERATURE
 import com.google.ai.edge.gallery.data.DEFAULT_TOPK
 import com.google.ai.edge.gallery.data.DEFAULT_TOPP
 import com.google.ai.edge.gallery.data.Model
-import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.gallery.inference.CraneLlmInferenceEngine
+import com.google.ai.edge.gallery.inference.LlmBackend
+import com.google.ai.edge.gallery.inference.LlmContent
+import com.google.ai.edge.gallery.inference.LlmConversationConfig
+import com.google.ai.edge.gallery.inference.LlmEngineConfig
+import com.google.ai.edge.gallery.inference.LlmGenerationOptions
+import com.google.ai.edge.gallery.inference.LlmMessageCallback
+import com.google.ai.edge.gallery.llm.CRANE_SYSTEM_PROMPT
+import com.google.ai.edge.gallery.llm.CraneConversation
+import com.google.ai.edge.gallery.llm.CraneEngine
+import com.google.ai.edge.gallery.llm.toLlmContents
 import com.google.ai.edge.litertlm.Contents
-import com.google.ai.edge.litertlm.Conversation
-import com.google.ai.edge.litertlm.ConversationConfig
-import com.google.ai.edge.litertlm.Engine
-import com.google.ai.edge.litertlm.EngineConfig
-import com.google.ai.edge.litertlm.ExperimentalApi
-import com.google.ai.edge.litertlm.ExperimentalFlags
-import com.google.ai.edge.litertlm.Message
-import com.google.ai.edge.litertlm.MessageCallback
-import com.google.ai.edge.litertlm.SamplerConfig
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.CancellationException
 
 private const val TAG = "AGLlmChatModelHelper"
 
@@ -48,13 +46,55 @@ typealias ResultListener = (partialResult: String, done: Boolean) -> Unit
 
 typealias CleanUpListener = () -> Unit
 
-data class LlmModelInstance(val engine: Engine, var conversation: Conversation)
+data class LlmModelInstance(val engine: CraneEngine, var conversation: CraneConversation)
 
+/**
+ * Crane fork: inference is routed through the LiteRT-LM v0.16 C-API (see
+ * [CraneLlmInferenceEngine]) instead of the litertlm Kotlin AAR. This applies the decoding
+ * guards (repetition penalty + no-repeat-ngram, defaults 1.15 / 3) and a template-safe system
+ * prompt — both proven on-device and impossible through the stock AAR path, which predates the
+ * guard APIs and returns instant empty responses when a system prompt is set.
+ */
 object LlmChatModelHelper {
   // Indexed by model name.
   private val cleanUpListeners: MutableMap<String, CleanUpListener> = mutableMapOf()
 
-  @OptIn(ExperimentalApi::class) // opt-in experimental flags
+  /**
+   * Resolves the system instruction to apply: the caller-supplied [systemInstruction] (custom
+   * tasks like TinyGarden/MobileActions always pass one), or else the per-model configured
+   * system prompt, defaulting to the Crane serving prompt (chat/ask-image/ask-audio don't pass
+   * one today; the settings-sheet row to override it per model lands in crane/settings-ui).
+   */
+  private fun systemInstructionContents(model: Model, systemInstruction: Contents?): List<LlmContent> {
+    if (systemInstruction != null) return systemInstruction.toLlmContents()
+    val promptText =
+      model.getStringConfigValue(key = ConfigKeys.SYSTEM_PROMPT, defaultValue = CRANE_SYSTEM_PROMPT)
+    return if (promptText.isBlank()) listOf() else listOf(LlmContent.Text(promptText))
+  }
+
+  private fun generationOptions(model: Model): LlmGenerationOptions {
+    val maxTokens =
+      model.getIntConfigValue(key = ConfigKeys.MAX_TOKENS, defaultValue = DEFAULT_MAX_TOKEN)
+    // Decoding guards: read from the per-model config (Model configs sheet), defaulting to the
+    // Crane serving values. Applied per-send, so changes take effect on the next message
+    // without re-initialization.
+    val repetitionPenalty =
+      model.getFloatConfigValue(
+        key = ConfigKeys.REPETITION_PENALTY,
+        defaultValue = LlmGenerationOptions.DEFAULT_REPETITION_PENALTY,
+      )
+    val noRepeatNgramSize =
+      model.getIntConfigValue(
+        key = ConfigKeys.NO_REPEAT_NGRAM,
+        defaultValue = LlmGenerationOptions.DEFAULT_NO_REPEAT_NGRAM_SIZE,
+      )
+    return LlmGenerationOptions(
+      maxOutputTokens = maxTokens,
+      repetitionPenalty = repetitionPenalty,
+      noRepeatNgramSize = noRepeatNgramSize,
+    )
+  }
+
   fun initialize(
     context: Context,
     model: Model,
@@ -65,71 +105,57 @@ object LlmChatModelHelper {
     tools: List<Any> = listOf(),
     enableConversationConstrainedDecoding: Boolean = false,
   ) {
-    // Prepare options.
-    val maxTokens =
-      model.getIntConfigValue(key = ConfigKeys.MAX_TOKENS, defaultValue = DEFAULT_MAX_TOKEN)
-    val topK = model.getIntConfigValue(key = ConfigKeys.TOPK, defaultValue = DEFAULT_TOPK)
-    val topP = model.getFloatConfigValue(key = ConfigKeys.TOPP, defaultValue = DEFAULT_TOPP)
-    val temperature =
-      model.getFloatConfigValue(key = ConfigKeys.TEMPERATURE, defaultValue = DEFAULT_TEMPERATURE)
+    Log.d(TAG, "Initializing (Crane C-API path)...")
+    // The Crane C-API path is text-only and CPU-only for now (see CraneLlmInferenceEngine), so
+    // supportImage/supportAudio don't change engine setup here — kept for call-site parity with
+    // the AAR-backed API this replaces.
     val accelerator =
       model.getStringConfigValue(key = ConfigKeys.ACCELERATOR, defaultValue = Accelerator.GPU.label)
-    Log.d(TAG, "Initializing...")
-    val shouldEnableImage = supportImage
-    val shouldEnableAudio = supportAudio
-    Log.d(TAG, "Enable image: $shouldEnableImage, enable audio: $shouldEnableAudio")
-    val preferredBackend =
-      when (accelerator) {
-        Accelerator.CPU.label -> Backend.CPU
-        Accelerator.GPU.label -> Backend.GPU
-        else -> Backend.CPU
-      }
-    Log.d(TAG, "Preferred backend: $preferredBackend")
-
+    val backend = if (accelerator == Accelerator.GPU.label) LlmBackend.GPU else LlmBackend.CPU
+    val maxTokens =
+      model.getIntConfigValue(key = ConfigKeys.MAX_TOKENS, defaultValue = DEFAULT_MAX_TOKEN)
     val modelPath = model.getPath(basePath = context.getExternalFilesDir(null)?.absolutePath ?: "")
-    val engineConfig =
-      EngineConfig(
-        modelPath = modelPath,
-        backend = preferredBackend,
-        visionBackend = if (shouldEnableImage) Backend.GPU else null, // must be GPU for Gemma 3n
-        audioBackend = if (shouldEnableAudio) Backend.CPU else null, // must be CPU for Gemma 3n
-        maxNumTokens = maxTokens,
-        cacheDir =
-          if (modelPath.startsWith("/data/local/tmp"))
-            context.getExternalFilesDir(null)?.absolutePath
-          else null,
-      )
 
-    // Create an instance of LiteRT LM engine and conversation.
+    val inferenceEngine = CraneLlmInferenceEngine()
+    var initError = ""
+    inferenceEngine.initialize(
+      LlmEngineConfig(modelPath = modelPath, backend = backend, maxNumTokens = maxTokens)
+    ) { error ->
+      initError = error
+    }
+    if (initError.isNotEmpty()) {
+      onDone(cleanUpMediapipeTaskErrorMessage(initError))
+      return
+    }
+
     try {
-      val engine = Engine(engineConfig)
-      engine.initialize()
-
-      ExperimentalFlags.enableConversationConstrainedDecoding =
-        enableConversationConstrainedDecoding
       val conversation =
-        engine.createConversation(
-          ConversationConfig(
-            samplerConfig =
-              SamplerConfig(
-                topK = topK,
-                topP = topP.toDouble(),
-                temperature = temperature.toDouble(),
-              ),
-            systemInstruction = systemInstruction,
+        inferenceEngine.createConversation(
+          LlmConversationConfig(
+            topK = model.getIntConfigValue(key = ConfigKeys.TOPK, defaultValue = DEFAULT_TOPK),
+            topP =
+              model.getFloatConfigValue(key = ConfigKeys.TOPP, defaultValue = DEFAULT_TOPP).toDouble(),
+            temperature =
+              model
+                .getFloatConfigValue(key = ConfigKeys.TEMPERATURE, defaultValue = DEFAULT_TEMPERATURE)
+                .toDouble(),
+            systemInstruction = systemInstructionContents(model, systemInstruction),
             tools = tools,
+            enableConstrainedDecoding = enableConversationConstrainedDecoding,
           )
         )
-      ExperimentalFlags.enableConversationConstrainedDecoding = false
-      model.instance = LlmModelInstance(engine = engine, conversation = conversation)
+      model.instance =
+        LlmModelInstance(
+          engine = CraneEngine(inferenceEngine),
+          conversation = CraneConversation(conversation),
+        )
     } catch (e: Exception) {
-      onDone(cleanUpMediapipeTaskErrorMessage(e.message ?: "Unknown error"))
+      onDone("Error initializing model: ${e.message}")
       return
     }
     onDone("")
   }
 
-  @OptIn(ExperimentalApi::class) // opt-in experimental flags
   fun resetConversation(
     model: Model,
     supportImage: Boolean,
@@ -144,32 +170,23 @@ object LlmChatModelHelper {
       val instance = model.instance as LlmModelInstance? ?: return
       instance.conversation.close()
 
-      val engine = instance.engine
       val topK = model.getIntConfigValue(key = ConfigKeys.TOPK, defaultValue = DEFAULT_TOPK)
       val topP = model.getFloatConfigValue(key = ConfigKeys.TOPP, defaultValue = DEFAULT_TOPP)
       val temperature =
         model.getFloatConfigValue(key = ConfigKeys.TEMPERATURE, defaultValue = DEFAULT_TEMPERATURE)
-      val shouldEnableImage = supportImage
-      val shouldEnableAudio = supportAudio
-      Log.d(TAG, "Enable image: $shouldEnableImage, enable audio: $shouldEnableAudio")
 
-      ExperimentalFlags.enableConversationConstrainedDecoding =
-        enableConversationConstrainedDecoding
       val newConversation =
-        engine.createConversation(
-          ConversationConfig(
-            samplerConfig =
-              SamplerConfig(
-                topK = topK,
-                topP = topP.toDouble(),
-                temperature = temperature.toDouble(),
-              ),
-            systemInstruction = systemInstruction,
+        instance.engine.inferenceEngine.createConversation(
+          LlmConversationConfig(
+            topK = topK,
+            topP = topP.toDouble(),
+            temperature = temperature.toDouble(),
+            systemInstruction = systemInstructionContents(model, systemInstruction),
             tools = tools,
+            enableConstrainedDecoding = enableConversationConstrainedDecoding,
           )
         )
-      ExperimentalFlags.enableConversationConstrainedDecoding = false
-      instance.conversation = newConversation
+      instance.conversation = CraneConversation(newConversation)
 
       Log.d(TAG, "Resetting done")
     } catch (e: Exception) {
@@ -224,45 +241,43 @@ object LlmChatModelHelper {
 
     val conversation = instance.conversation
 
-    val contents = mutableListOf<Content>()
-    for (image in images) {
-      contents.add(Content.ImageBytes(image.toPngByteArray()))
+    if (images.isNotEmpty() || audioClips.isNotEmpty()) {
+      Log.w(TAG, "Crane C-API path is text-only; ignoring images/audio")
     }
-    for (audioClip in audioClips) {
-      contents.add(Content.AudioBytes(audioClip))
-    }
-    // add the text after image and audio for the accurate last token
+    val contents = mutableListOf<LlmContent>()
     if (input.trim().isNotEmpty()) {
-      contents.add(Content.Text(input))
+      contents.add(LlmContent.Text(input))
     }
 
-    conversation.sendMessageAsync(
-      Contents.of(contents),
-      object : MessageCallback {
-        override fun onMessage(message: Message) {
-          resultListener(message.toString(), false)
-        }
+    val options = generationOptions(model)
+    Log.d(
+      TAG,
+      "Send with guards: maxTokens=${options.maxOutputTokens} rep=${options.repetitionPenalty} " +
+        "ngram=${options.noRepeatNgramSize}",
+    )
 
-        override fun onDone() {
-          resultListener("", true)
-        }
+    try {
+      conversation.sendMessageAsync(
+        contents,
+        object : LlmMessageCallback {
+          override fun onMessage(text: String) {
+            if (text.isNotEmpty()) resultListener(text, false)
+          }
 
-        override fun onError(throwable: Throwable) {
-          if (throwable is CancellationException) {
-            Log.i(TAG, "The inference is cancelled.")
+          override fun onDone() {
             resultListener("", true)
-          } else {
+          }
+
+          override fun onError(throwable: Throwable) {
             Log.e(TAG, "onError", throwable)
             onError("Error: ${throwable.message}")
           }
-        }
-      },
-    )
-  }
-
-  private fun Bitmap.toPngByteArray(): ByteArray {
-    val stream = ByteArrayOutputStream()
-    this.compress(Bitmap.CompressFormat.PNG, 100, stream)
-    return stream.toByteArray()
+        },
+        options,
+      )
+    } catch (e: Exception) {
+      Log.e(TAG, "Inference error", e)
+      onError("Error: ${e.message}")
+    }
   }
 }
