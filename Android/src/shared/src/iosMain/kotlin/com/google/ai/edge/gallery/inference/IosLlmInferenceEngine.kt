@@ -21,13 +21,15 @@ import io.github.aakira.napier.Napier
 private const val TAG = "IosLlmEngine"
 
 /**
- * Protocol that Swift code implements to provide LLM inference via
- * MediaPipe iOS SDK (or any other iOS-native inference backend).
+ * Protocol that Swift code implements to provide LLM inference.
  *
- * This avoids direct Kotlin/Native cinterop with MediaPipe's Objective-C API,
- * which can cause NPEs (as documented by the MediaPiper reference project).
- * Instead, the Swift side handles all MediaPipe calls and exposes them
- * through this delegate interface.
+ * Implemented by `CraneLlmBridge.swift`, which drives the LiteRT-LM v0.16 C API
+ * (`CLiteRTLM.xcframework`) directly — the iOS counterpart of Android's `crane_llm_jni.c`.
+ * Android needs a C shim because the JVM cannot call C; Swift can, so the Swift file is the
+ * shim. Keeping it behind this delegate rather than a Kotlin/Native cinterop is deliberate:
+ * the C API hands stream chunks back on its own thread, which Swift handles with a plain
+ * `@convention(c)` callback, and the published xcframework ships arm64 slices only — a cinterop
+ * would break the `iosX64()` target, which has no slice to link against.
  */
 interface IosLlmDelegate {
   fun initialize(
@@ -50,12 +52,21 @@ interface IosLlmDelegate {
 
 /**
  * Protocol that Swift code implements for a conversation session.
+ *
+ * The send functions carry the Crane decoding guards explicitly ([repetitionPenalty],
+ * [noRepeatNgramSize]) rather than letting the Swift side pick its own: they originate in
+ * [LlmGenerationOptions] on the shared seam, so both platforms read the same per-model config
+ * and the settings sheet can turn them off. `repetitionPenalty <= 1.0` and
+ * `noRepeatNgramSize <= 0` mean "guard disabled", matching the Android C-API path.
  */
 interface IosLlmConversationDelegate {
   fun sendMessageAsync(
     text: String,
     imageBytes: List<ByteArray>,
     audioBytes: List<ByteArray>,
+    maxOutputTokens: Int,
+    repetitionPenalty: Float,
+    noRepeatNgramSize: Int,
     onToken: (String) -> Unit,
     onDone: () -> Unit,
     onError: (String) -> Unit,
@@ -65,6 +76,9 @@ interface IosLlmConversationDelegate {
     text: String,
     imageBytes: List<ByteArray>,
     audioBytes: List<ByteArray>,
+    maxOutputTokens: Int,
+    repetitionPenalty: Float,
+    noRepeatNgramSize: Int,
   ): String
 
   fun cancel()
@@ -118,11 +132,11 @@ class IosLlmConversation(
   private val delegate: IosLlmConversationDelegate,
 ) : LlmConversation {
 
-  // TODO(crane): [options]'s repetitionPenalty/noRepeatNgramSize are NOT applied on iOS yet.
-  // The MediaPipe iOS SDK behind [delegate] predates those decoding guards, same as the
-  // Android AAR they replace on Android. Do not present these as active on iOS — see
-  // CraneLlmInferenceEngine (androidMain) for the C-API path that will eventually get an
-  // iOS cinterop actual over the same LiteRT-LM C API.
+  /**
+   * The Crane decoding guards in [options] are applied per-send, forwarded to the Swift
+   * [CraneLlmBridge] which sets `repetition_penalty` + `no_repeat_ngram` on the LiteRT-LM
+   * conversation's optional args — the same C-API calls `crane_llm_jni.c` makes on Android.
+   */
   override fun sendMessageAsync(
     contents: List<LlmContent>,
     callback: LlmMessageCallback,
@@ -132,22 +146,37 @@ class IosLlmConversation(
     val images = contents.filterIsInstance<LlmContent.ImageBytes>().map { it.bytes }
     val audio = contents.filterIsInstance<LlmContent.AudioBytes>().map { it.bytes }
 
+    Napier.d(tag = TAG) {
+      "Send with guards: maxTokens=${options.maxOutputTokens} " +
+        "rep=${options.repetitionPenalty} ngram=${options.noRepeatNgramSize}"
+    }
+
     delegate.sendMessageAsync(
       text = text,
       imageBytes = images,
       audioBytes = audio,
+      maxOutputTokens = options.maxOutputTokens,
+      repetitionPenalty = options.repetitionPenalty,
+      noRepeatNgramSize = options.noRepeatNgramSize,
       onToken = { token -> callback.onMessage(token) },
       onDone = { callback.onDone() },
       onError = { errorMsg -> callback.onError(RuntimeException(errorMsg)) },
     )
   }
 
-  // TODO(crane): guards not applied on iOS yet; see sendMessageAsync above.
+  /** Guards apply per-send here too; see [sendMessageAsync]. */
   override fun sendMessage(contents: List<LlmContent>, options: LlmGenerationOptions): String {
     val text = contents.filterIsInstance<LlmContent.Text>().joinToString("\n") { it.text }
     val images = contents.filterIsInstance<LlmContent.ImageBytes>().map { it.bytes }
     val audio = contents.filterIsInstance<LlmContent.AudioBytes>().map { it.bytes }
-    return delegate.sendMessage(text = text, imageBytes = images, audioBytes = audio)
+    return delegate.sendMessage(
+      text = text,
+      imageBytes = images,
+      audioBytes = audio,
+      maxOutputTokens = options.maxOutputTokens,
+      repetitionPenalty = options.repetitionPenalty,
+      noRepeatNgramSize = options.noRepeatNgramSize,
+    )
   }
 
   override fun cancelProcess() {

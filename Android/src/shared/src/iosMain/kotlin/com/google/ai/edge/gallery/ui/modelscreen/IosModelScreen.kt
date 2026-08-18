@@ -64,7 +64,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import com.google.ai.edge.gallery.data.Accelerator
 import com.google.ai.edge.gallery.data.ConfigKeys
 import com.google.ai.edge.gallery.data.DEFAULT_MAX_TOKEN
 import com.google.ai.edge.gallery.data.DEFAULT_TOPK
@@ -73,19 +72,17 @@ import com.google.ai.edge.gallery.data.DEFAULT_TEMPERATURE
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.ModelDownloadStatusType
 import com.google.ai.edge.gallery.data.Task
-import com.google.ai.edge.gallery.inference.LlmBackend
 import com.google.ai.edge.gallery.inference.LlmContent
 import com.google.ai.edge.gallery.inference.LlmConversationConfig
-import com.google.ai.edge.gallery.inference.LlmEngineConfig
+import com.google.ai.edge.gallery.inference.LlmGenerationOptions
 import com.google.ai.edge.gallery.inference.LlmInferenceEngine
 import com.google.ai.edge.gallery.inference.LlmMessageCallback
+import com.google.ai.edge.gallery.llm.CRANE_SYSTEM_PROMPT
 import com.google.ai.edge.gallery.platform.IosImagePicker
 import com.google.ai.edge.gallery.platform.PlatformBackHandler
-import com.google.ai.edge.gallery.platform.PlatformContext
-import com.google.ai.edge.gallery.platform.getAppFilesDirectory
-import com.google.ai.edge.gallery.platform.getCacheDirectory
 import com.google.ai.edge.gallery.ui.common.ModelPageAppBar
 import com.google.ai.edge.gallery.ui.common.chat.ModelDownloadStatusInfoPanel
+import com.google.ai.edge.gallery.ui.modelmanager.ModelInitializationStatusType
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerActions
 import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image as SkiaImage
@@ -115,6 +112,10 @@ fun IosModelScreen(
   val uiState by modelManagerActions.uiState.collectAsState()
   val downloadStatus = uiState.modelDownloadStatus[model.name]
   val isDownloaded = downloadStatus?.status == ModelDownloadStatusType.SUCCEEDED
+  // Hoisted out of the chat panel so the app bar can disable the model-configs button while a
+  // response is streaming — editing a config there can force a re-initialization, which would
+  // pull the native engine out from under an in-flight generation.
+  var isGenerating by remember { mutableStateOf(false) }
 
   PlatformBackHandler { navigateUp() }
 
@@ -126,8 +127,8 @@ fun IosModelScreen(
         modelManagerViewModel = modelManagerActions,
         onBackClicked = navigateUp,
         onModelSelected = { _, _ -> },
-        inProgress = false,
-        modelPreparing = false,
+        inProgress = isGenerating,
+        modelPreparing = uiState.isModelInitializing(model),
       )
     },
   ) { innerPadding ->
@@ -139,6 +140,9 @@ fun IosModelScreen(
         IosLlmChatPanel(
           task = task,
           model = model,
+          modelManagerActions = modelManagerActions,
+          isGenerating = isGenerating,
+          onGeneratingChanged = { isGenerating = it },
           modifier = Modifier.fillMaxSize(),
         )
       } else {
@@ -160,60 +164,41 @@ fun IosModelScreen(
 private fun IosLlmChatPanel(
   task: Task,
   model: Model,
+  modelManagerActions: ModelManagerActions,
+  isGenerating: Boolean,
+  onGeneratingChanged: (Boolean) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val engine: LlmInferenceEngine = koinInject()
   val scope = rememberCoroutineScope()
   val chatItems = remember { mutableStateListOf<ChatItem>() }
   var inputText by remember { mutableStateOf("") }
-  var isGenerating by remember { mutableStateOf(false) }
-  var isInitializing by remember { mutableStateOf(true) }
-  var initError by remember { mutableStateOf<String?>(null) }
   val listState = rememberLazyListState()
   val attachedImages = remember { mutableStateListOf<ByteArray>() }
   val supportsImages = model.llmSupportImage
 
-  // Initialize engine when entering the screen.
+  // Initialization is delegated to the model manager rather than driven here. It already does
+  // exactly this work (reads MAX_TOKENS/ACCELERATOR, builds LlmEngineConfig, initializes the
+  // engine), and — the reason this matters — it is the only thing that publishes
+  // modelInitializationStatus. ModelPageAppBar gates the model-configs button on
+  // `isModelInitialized`, so while the panel initialized the engine privately the settings
+  // sheet was rendered permanently greyed out on iOS and the decoding guards were unreachable.
+  val uiState by modelManagerActions.uiState.collectAsState()
+  val initStatus = uiState.modelInitializationStatus[model.name]
+  val isModelReady = initStatus?.status == ModelInitializationStatusType.INITIALIZED
+  val initError =
+    initStatus?.takeIf { it.status == ModelInitializationStatusType.ERROR }?.error?.ifEmpty {
+      "Unknown initialization error"
+    }
+  val isInitializing = !isModelReady && initError == null
+
   LaunchedEffect(model.name) {
-    isInitializing = true
-    initError = null
-
-    val platformContext = PlatformContext()
-    val basePath = platformContext.getAppFilesDirectory()
-    val modelPath = model.getPath(basePath = basePath)
-    val cacheDir = platformContext.getCacheDirectory()
-
-    val maxTokens = model.getIntConfigValue(
-      key = ConfigKeys.MAX_TOKENS,
-      defaultValue = if (model.llmMaxToken > 0) model.llmMaxToken else DEFAULT_MAX_TOKEN,
-    )
-    val acceleratorLabel = model.getStringConfigValue(
-      key = ConfigKeys.ACCELERATOR,
-      defaultValue = Accelerator.GPU.label,
-    )
-    val backend = when (acceleratorLabel) {
-      Accelerator.CPU.label -> LlmBackend.CPU
-      else -> LlmBackend.GPU
-    }
-
-    val config = LlmEngineConfig(
-      modelPath = modelPath,
-      backend = backend,
-      visionBackend = if (supportsImages) LlmBackend.GPU else null,
-      maxNumTokens = maxTokens,
-      cacheDir = cacheDir,
-    )
-    engine.initialize(config) { error ->
-      isInitializing = false
-      if (error.isNotEmpty()) {
-        initError = error
-      }
-    }
+    modelManagerActions.initializeModel(task = task, model = model)
   }
 
   DisposableEffect(model.name) {
     onDispose {
-      engine.close()
+      modelManagerActions.cleanupModel(task = task, model = model)
     }
   }
 
@@ -450,7 +435,7 @@ private fun IosLlmChatPanel(
             attachedImages.clear()
             chatItems.add(ChatItem.UserMessage(messageText, currentImages))
             chatItems.add(ChatItem.ModelMessage("", inProgress = true))
-            isGenerating = true
+            onGeneratingChanged(true)
 
             scope.launch {
               try {
@@ -466,12 +451,40 @@ private fun IosLlmChatPanel(
                   key = ConfigKeys.TEMPERATURE,
                   defaultValue = DEFAULT_TEMPERATURE,
                 )
+                // The system prompt is applied template-safely at conversation creation, the
+                // same place the Android C-API path applies it.
+                val systemPrompt = model.getStringConfigValue(
+                  key = ConfigKeys.SYSTEM_PROMPT,
+                  defaultValue = CRANE_SYSTEM_PROMPT,
+                )
                 val conversation = engine.createConversation(
                   LlmConversationConfig(
                     topK = topK,
                     topP = topP.toDouble(),
                     temperature = temperature.toDouble(),
+                    systemInstruction =
+                      if (systemPrompt.isBlank()) null
+                      else listOf(LlmContent.Text(systemPrompt)),
                   )
+                )
+
+                // Decoding guards, read per-send from the model config so the settings sheet
+                // takes effect on the next message without re-initializing. Mirrors
+                // LlmChatModelHelper.generationOptions() on Android.
+                val options = LlmGenerationOptions(
+                  maxOutputTokens = model.getIntConfigValue(
+                    key = ConfigKeys.MAX_TOKENS,
+                    defaultValue =
+                      if (model.llmMaxToken > 0) model.llmMaxToken else DEFAULT_MAX_TOKEN,
+                  ),
+                  repetitionPenalty = model.getFloatConfigValue(
+                    key = ConfigKeys.REPETITION_PENALTY,
+                    defaultValue = LlmGenerationOptions.DEFAULT_REPETITION_PENALTY,
+                  ),
+                  noRepeatNgramSize = model.getIntConfigValue(
+                    key = ConfigKeys.NO_REPEAT_NGRAM,
+                    defaultValue = LlmGenerationOptions.DEFAULT_NO_REPEAT_NGRAM_SIZE,
+                  ),
                 )
 
                 // Build content list with text and optional images.
@@ -486,6 +499,7 @@ private fun IosLlmChatPanel(
                 val responseIndex = chatItems.size - 1
                 conversation.sendMessageAsync(
                   contents = contents,
+                  options = options,
                   callback = object : LlmMessageCallback {
                     override fun onMessage(text: String) {
                       val current = chatItems[responseIndex]
@@ -501,20 +515,24 @@ private fun IosLlmChatPanel(
                       if (current is ChatItem.ModelMessage) {
                         chatItems[responseIndex] = current.copy(inProgress = false)
                       }
-                      isGenerating = false
+                      onGeneratingChanged(false)
+                      // Each send builds its own conversation (so an edited system prompt takes
+                      // effect immediately); close it or the native handle leaks per message.
+                      conversation.close()
                     }
 
                     override fun onError(throwable: Throwable) {
                       chatItems[responseIndex] = ChatItem.Error(
                         throwable.message ?: "Unknown error"
                       )
-                      isGenerating = false
+                      onGeneratingChanged(false)
+                      conversation.close()
                     }
                   }
                 )
               } catch (e: Exception) {
                 chatItems.add(ChatItem.Error(e.message ?: "Failed to send message"))
-                isGenerating = false
+                onGeneratingChanged(false)
               }
             }
           },
