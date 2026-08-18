@@ -86,6 +86,7 @@ import com.google.ai.edge.gallery.data.Config
 import com.google.ai.edge.gallery.data.LabelConfig
 import com.google.ai.edge.gallery.data.NumberSliderConfig
 import com.google.ai.edge.gallery.data.SegmentedButtonConfig
+import com.google.ai.edge.gallery.data.TextInputConfig
 import com.google.ai.edge.gallery.data.ValueType
 import com.google.ai.edge.gallery.platform.Log
 import com.google.ai.edge.gallery.ui.theme.labelSmallNarrow
@@ -208,6 +209,11 @@ fun ConfigEditorsPanel(configs: List<Config>, values: SnapshotStateMap<String, A
       // Bottom sheet selector.
       is BottomSheetSelectorConfig -> {
         BottomSheetSelectorRow(config = config, values = values)
+      }
+
+      // Free-text input (e.g. the Crane system prompt).
+      is TextInputConfig -> {
+        TextInputRow(config = config, values = values)
       }
 
       else -> {}
@@ -383,6 +389,52 @@ fun SegmentedButtonRow(config: SegmentedButtonConfig, values: SnapshotStateMap<S
           checked = selectionStates[index],
           label = { Text(label) },
         )
+      }
+    }
+  }
+}
+
+@Composable
+fun TextInputRow(config: TextInputConfig, values: SnapshotStateMap<String, Any>) {
+  var isFocused by remember { mutableStateOf(false) }
+  val focusRequester = remember { FocusRequester() }
+  val focusManager = LocalFocusManager.current
+
+  val textValue =
+    try {
+      values[config.key.label] as String
+    } catch (e: Exception) {
+      ""
+    }
+
+  Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+    Text(config.key.label, style = MaterialTheme.typography.titleSmall)
+    BasicTextField(
+      value = textValue,
+      onValueChange = { values[config.key.label] = it },
+      singleLine = !config.multiline,
+      keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+      modifier =
+        Modifier.fillMaxWidth()
+          .padding(top = 4.dp)
+          .focusRequester(focusRequester)
+          .onFocusChanged { isFocused = it.isFocused },
+      textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
+      cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+    ) { innerTextField ->
+      Box(
+        modifier =
+          Modifier.border(
+              width = if (isFocused) 2.dp else 1.dp,
+              color =
+                if (isFocused) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+              shape = RoundedCornerShape(8.dp),
+            )
+            .padding(12.dp)
+            .fillMaxWidth()
+      ) {
+        innerTextField()
       }
     }
   }

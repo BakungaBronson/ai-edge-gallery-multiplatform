@@ -29,20 +29,10 @@ import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/**
- * The Crane a065 serving system prompt (language-match + Ugandan-context). Used as the default
- * when no per-model system prompt config exists yet (that lands with the settings-sheet row in
- * crane/settings-ui); see [com.google.ai.edge.gallery.data.ConfigKeys.SYSTEM_PROMPT].
- */
-const val CRANE_SYSTEM_PROMPT =
-  "You are an assistant for Ugandan primary-school teachers. Reply in the " +
-    "SAME language as the teacher's message: if the teacher writes in " +
-    "English, reply in English. Only write in Luganda for the specific " +
-    "content the teacher explicitly asks to be in Luganda (for example, a " +
-    "Luganda reading passage or Luganda example words). Always use Ugandan " +
-    "context in your examples — local names (Nakato, Kato, Wasswa, " +
-    "Nalwanga), local items (matooke, jerrycans, bottle tops, beans), and " +
-    "Ugandan places."
+// CRANE_SYSTEM_PROMPT now lives in commonMain (CraneServingDefaults.kt, same package), so it's
+// visible here without an import — :app depends on :shared and both are
+// com.google.ai.edge.gallery.llm. Moved so the settings-sheet config default (commonMain) and
+// this Android chat path share one definition instead of two copies drifting.
 
 /**
  * Compat wrapper around [CraneLlmInferenceEngine]'s KMP seam, shaped like the litertlm AAR's

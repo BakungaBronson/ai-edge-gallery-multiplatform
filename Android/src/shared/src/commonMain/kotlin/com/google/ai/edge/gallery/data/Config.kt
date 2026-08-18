@@ -17,6 +17,8 @@
 package com.google.ai.edge.gallery.data
 
 import com.google.ai.edge.gallery.common.formatFloat
+import com.google.ai.edge.gallery.inference.LlmGenerationOptions
+import com.google.ai.edge.gallery.llm.CRANE_SYSTEM_PROMPT
 import kotlin.math.abs
 
 /**
@@ -31,6 +33,7 @@ enum class ConfigEditorType {
   BOOLEAN_SWITCH,
   SEGMENTED_BUTTON,
   BOTTOMSHEET_SELECTOR,
+  TEXT_INPUT,
 }
 
 /** The data types of configuration values. */
@@ -74,10 +77,9 @@ object ConfigKeys {
   val DECODE_TOKENS = ConfigKey("decode_tokens", "Decode tokens")
   val NUMBER_OF_RUNS = ConfigKey("number_of_runs", "Number of runs")
 
-  // Crane decoding guards + system prompt (applied via the LiteRT-LM C-API). Keys only for now
-  // — no settings-sheet row yet (that lands with the TEXT_INPUT editor in crane/settings-ui), so
-  // these always resolve to their hardcoded defaults below until that PR wires them into
-  // createLlmChatConfigs.
+  // Crane decoding guards + system prompt (applied via the LiteRT-LM C-API). Wired into
+  // createLlmChatConfigs below, so these show up as settings-sheet rows (NUMBER_SLIDER x2 +
+  // TEXT_INPUT) and their edited values flow through Model.configValues like any other config.
   val REPETITION_PENALTY = ConfigKey("repetition_penalty", "Repetition penalty")
   val NO_REPEAT_NGRAM = ConfigKey("no_repeat_ngram", "No-repeat n-gram size")
   val SYSTEM_PROMPT = ConfigKey("system_prompt", "System prompt")
@@ -175,6 +177,23 @@ class BottomSheetSelectorConfig(
 
 data class BottomSheetSelectorItem(val label: String)
 
+/**
+ * Configuration setting for a free-text (potentially multiline) input, e.g. the Crane system
+ * prompt.
+ */
+class TextInputConfig(
+  override val key: ConfigKey,
+  override val defaultValue: String,
+  val multiline: Boolean = true,
+  override val needReinitialization: Boolean = true,
+) :
+  Config(
+    type = ConfigEditorType.TEXT_INPUT,
+    key = key,
+    defaultValue = defaultValue,
+    valueType = ValueType.STRING,
+  )
+
 fun convertValueToTargetType(value: Any, valueType: ValueType): Any {
   return when (valueType) {
     ValueType.INT ->
@@ -259,6 +278,26 @@ fun createLlmChatConfigs(
       defaultValue = defaultTemperature,
       valueType = ValueType.FLOAT,
     ),
+    // Crane decoding guards: applied per-send via the LiteRT-LM C-API, so no reinitialization
+    // needed when these change (matches the crane-wrapper reference's proven serving values).
+    NumberSliderConfig(
+      key = ConfigKeys.REPETITION_PENALTY,
+      sliderMin = 1.0f,
+      sliderMax = 1.5f,
+      defaultValue = LlmGenerationOptions.DEFAULT_REPETITION_PENALTY,
+      valueType = ValueType.FLOAT,
+      needReinitialization = false,
+    ),
+    NumberSliderConfig(
+      key = ConfigKeys.NO_REPEAT_NGRAM,
+      sliderMin = 0f,
+      sliderMax = 6f,
+      defaultValue = LlmGenerationOptions.DEFAULT_NO_REPEAT_NGRAM_SIZE.toFloat(),
+      valueType = ValueType.INT,
+      needReinitialization = false,
+    ),
+    // System prompt is applied at conversation creation, so editing it does reinitialize.
+    TextInputConfig(key = ConfigKeys.SYSTEM_PROMPT, defaultValue = CRANE_SYSTEM_PROMPT),
     SegmentedButtonConfig(
       key = ConfigKeys.ACCELERATOR,
       defaultValue = accelerators[0].label,
