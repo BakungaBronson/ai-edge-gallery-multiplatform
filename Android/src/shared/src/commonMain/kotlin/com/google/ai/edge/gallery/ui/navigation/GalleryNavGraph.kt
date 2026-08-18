@@ -270,8 +270,8 @@ fun GalleryNavHost(
       enterTransition = { slideEnter() },
       exitTransition = { slideExit() },
     ) { backStackEntry ->
-      val modelName = backStackEntry.arguments?.getString("modelName") ?: ""
-      val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+      val modelName = backStackEntry.savedStateHandle.get<String>("modelName") ?: ""
+      val taskId = backStackEntry.savedStateHandle.get<String>("taskId") ?: ""
 
       screenProvider.ModelScreen(
         taskId = taskId,
@@ -332,7 +332,7 @@ fun GalleryNavHost(
       enterTransition = { slideEnter() },
       exitTransition = { slideExit() },
     ) { backStackEntry ->
-      val modelName = backStackEntry.arguments?.getString("modelName") ?: ""
+      val modelName = backStackEntry.savedStateHandle.get<String>("modelName") ?: ""
 
       screenProvider.BenchmarkScreen(
         modelName = modelName,

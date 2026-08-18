@@ -42,8 +42,8 @@ coroutines = "1.9.0"
 koin = "4.0.0"
 ktor = "3.0.3"
 napier = "2.7.1"
-jetbrainsNavigation = "2.8.0-alpha10"
-jetbrainsLifecycle = "2.8.4"
+jetbrainsNavigation = "2.9.0-beta01"
+jetbrainsLifecycle = "2.9.0-beta01"
 kotlinxDatetime = "0.6.1"
 
 [libraries]

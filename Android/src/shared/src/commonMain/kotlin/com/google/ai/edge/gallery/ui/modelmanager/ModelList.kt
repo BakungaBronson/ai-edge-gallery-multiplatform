@@ -296,7 +296,7 @@ fun ModelList(
 
       // List of models within a task.
       items(items = models) { model ->
-        val expanded = modelItemExpandedStates.getOrDefault(model.name, null)
+        val expanded = modelItemExpandedStates[model.name]
         ModelItem(
           model = model,
           task = task,

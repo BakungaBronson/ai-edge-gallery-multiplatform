@@ -89,9 +89,9 @@ fun IosSettingsDialog(
           style = MaterialTheme.typography.titleMedium,
         )
         val themes = listOf(
-          AppTheme.AUTO to "Auto",
-          AppTheme.LIGHT to "Light",
-          AppTheme.DARK to "Dark",
+          AppTheme.THEME_AUTO to "Auto",
+          AppTheme.THEME_LIGHT to "Light",
+          AppTheme.THEME_DARK to "Dark",
         )
         MultiChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
           themes.forEachIndexed { index, (theme, label) ->

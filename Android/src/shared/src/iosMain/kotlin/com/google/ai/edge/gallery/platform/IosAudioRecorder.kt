@@ -18,21 +18,26 @@ package com.google.ai.edge.gallery.platform
 
 import io.github.aakira.napier.Napier
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
 import platform.AVFAudio.AVAudioRecorder
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
-import platform.AVFAudio.AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
 import platform.AVFAudio.AVEncoderAudioQualityKey
+import platform.AVFAudio.setActive
 import platform.AVFAudio.AVFormatIDKey
 import platform.AVFAudio.AVLinearPCMBitDepthKey
 import platform.AVFAudio.AVLinearPCMIsFloatKey
 import platform.AVFAudio.AVNumberOfChannelsKey
 import platform.AVFAudio.AVSampleRateKey
 import platform.CoreAudioTypes.kAudioFormatLinearPCM
+import platform.Foundation.NSData
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
+import platform.Foundation.dataWithContentsOfFile
+import platform.posix.memcpy
 
 private const val TAG = "IosAudioRecorder"
 private const val SAMPLE_RATE = 16000.0
@@ -106,20 +111,16 @@ object IosAudioRecorder {
     recorder = null
 
     val session = AVAudioSession.sharedInstance()
-    session.setActive(
-      false,
-      withOptions = AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation,
-      error = null,
-    )
+    session.setActive(false, error = null)
 
     val url = recordingUrl ?: return null
     val path = url.path ?: return null
 
-    val data = platform.Foundation.NSData.dataWithContentsOfFile(path) ?: return null
+    val data = NSData.dataWithContentsOfFile(path) ?: return null
     val bytes = ByteArray(data.length.toInt())
     if (bytes.isNotEmpty()) {
-      kotlinx.cinterop.usePinned(bytes) { pinned ->
-        platform.posix.memcpy(pinned.addressOf(0), data.bytes, data.length)
+      bytes.usePinned { pinned ->
+        memcpy(pinned.addressOf(0), data.bytes, data.length)
       }
     }
 

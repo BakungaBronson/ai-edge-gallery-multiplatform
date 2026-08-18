@@ -719,7 +719,7 @@ private fun TaskCard(
     derivedStateOf {
       when (modelCount) {
         1 -> "1 Model"
-        else -> "%d Models".format(modelCount)
+        else -> "$modelCount Models"
       }
     }
   }

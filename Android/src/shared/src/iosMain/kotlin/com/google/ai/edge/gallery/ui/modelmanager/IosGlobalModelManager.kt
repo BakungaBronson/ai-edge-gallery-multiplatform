@@ -160,7 +160,7 @@ fun IosGlobalModelManager(
           PaddingValues(top = 16.dp, bottom = innerPadding.calculateBottomPadding() + 80.dp),
       ) {
         items(allModels) { model ->
-          val expanded = modelItemExpandedStates.getOrDefault(model.name, true)
+          val expanded = modelItemExpandedStates[model.name] ?: true
           ModelItem(
             model = model,
             task = null,

@@ -123,8 +123,11 @@ fun IosModelScreen(
       ModelPageAppBar(
         task = task,
         model = model,
-        modelManagerActions = modelManagerActions,
+        modelManagerViewModel = modelManagerActions,
         onBackClicked = navigateUp,
+        onModelSelected = { _, _ -> },
+        inProgress = false,
+        modelPreparing = false,
       )
     },
   ) { innerPadding ->
