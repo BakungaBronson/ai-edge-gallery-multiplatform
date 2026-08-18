@@ -30,10 +30,43 @@ interface LlmInferenceEngine {
 
 /** A conversation session with an LLM engine. */
 interface LlmConversation {
-  fun sendMessageAsync(contents: List<LlmContent>, callback: LlmMessageCallback)
-  fun sendMessage(contents: List<LlmContent>): String
+  fun sendMessageAsync(
+    contents: List<LlmContent>,
+    callback: LlmMessageCallback,
+    options: LlmGenerationOptions = LlmGenerationOptions(),
+  )
+
+  fun sendMessage(contents: List<LlmContent>, options: LlmGenerationOptions = LlmGenerationOptions()): String
+
   fun cancelProcess()
   fun close()
+}
+
+/**
+ * Options controlling a single generation call.
+ *
+ * [repetitionPenalty] and [noRepeatNgramSize] are the Crane decoding guards that stop
+ * open-ended prompts from doom-looping. Only the androidMain Crane engine (the JNI bridge over
+ * the LiteRT-LM v0.16 C API) honors them today; engines that don't support them — the stock
+ * AAR-backed [AndroidLlmInferenceEngine], and iOS until its C-API cinterop lands — treat them
+ * as a no-op.
+ *
+ * @param maxOutputTokens Cap on generated tokens for this send; <= 0 means "use the engine's
+ *   default".
+ * @param repetitionPenalty <= 1.0 disables the penalty (1.0 is a no-op by definition).
+ * @param noRepeatNgramSize <= 0 disables the no-repeat-ngram guard.
+ */
+data class LlmGenerationOptions(
+  val maxOutputTokens: Int = 0,
+  val repetitionPenalty: Float = DEFAULT_REPETITION_PENALTY,
+  val noRepeatNgramSize: Int = DEFAULT_NO_REPEAT_NGRAM_SIZE,
+) {
+  companion object {
+    // Crane serving defaults, proven on-device: stop the doom-loops the model exhibits
+    // under unguarded greedy decoding.
+    const val DEFAULT_REPETITION_PENALTY = 1.15f
+    const val DEFAULT_NO_REPEAT_NGRAM_SIZE = 3
+  }
 }
 
 /** Configuration for initializing the inference engine. */

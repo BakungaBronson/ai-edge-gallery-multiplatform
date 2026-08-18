@@ -105,7 +105,13 @@ class AndroidLlmInferenceEngine : LlmInferenceEngine {
 @OptIn(ExperimentalApi::class)
 class AndroidLlmConversation(private val conversation: Conversation) : LlmConversation {
 
-  override fun sendMessageAsync(contents: List<LlmContent>, callback: LlmMessageCallback) {
+  override fun sendMessageAsync(
+    contents: List<LlmContent>,
+    callback: LlmMessageCallback,
+    options: LlmGenerationOptions,
+  ) {
+    // The litertlm AAR predates the repetition-penalty / no-repeat-ngram APIs (that's the
+    // whole reason the Crane engine exists), so [options]'s guards are a no-op here.
     val liteRTContents = Contents.of(contents.map { it.toLiteRTContent() })
     conversation.sendMessageAsync(
       liteRTContents,
@@ -125,7 +131,8 @@ class AndroidLlmConversation(private val conversation: Conversation) : LlmConver
     )
   }
 
-  override fun sendMessage(contents: List<LlmContent>): String {
+  override fun sendMessage(contents: List<LlmContent>, options: LlmGenerationOptions): String {
+    // No-op guards; see sendMessageAsync.
     val liteRTContents = Contents.of(contents.map { it.toLiteRTContent() })
     val message = conversation.sendMessage(liteRTContents)
     return message.toString()

@@ -118,7 +118,16 @@ class IosLlmConversation(
   private val delegate: IosLlmConversationDelegate,
 ) : LlmConversation {
 
-  override fun sendMessageAsync(contents: List<LlmContent>, callback: LlmMessageCallback) {
+  // TODO(crane): [options]'s repetitionPenalty/noRepeatNgramSize are NOT applied on iOS yet.
+  // The MediaPipe iOS SDK behind [delegate] predates those decoding guards, same as the
+  // Android AAR they replace on Android. Do not present these as active on iOS — see
+  // CraneLlmInferenceEngine (androidMain) for the C-API path that will eventually get an
+  // iOS cinterop actual over the same LiteRT-LM C API.
+  override fun sendMessageAsync(
+    contents: List<LlmContent>,
+    callback: LlmMessageCallback,
+    options: LlmGenerationOptions,
+  ) {
     val text = contents.filterIsInstance<LlmContent.Text>().joinToString("\n") { it.text }
     val images = contents.filterIsInstance<LlmContent.ImageBytes>().map { it.bytes }
     val audio = contents.filterIsInstance<LlmContent.AudioBytes>().map { it.bytes }
@@ -133,7 +142,8 @@ class IosLlmConversation(
     )
   }
 
-  override fun sendMessage(contents: List<LlmContent>): String {
+  // TODO(crane): guards not applied on iOS yet; see sendMessageAsync above.
+  override fun sendMessage(contents: List<LlmContent>, options: LlmGenerationOptions): String {
     val text = contents.filterIsInstance<LlmContent.Text>().joinToString("\n") { it.text }
     val images = contents.filterIsInstance<LlmContent.ImageBytes>().map { it.bytes }
     val audio = contents.filterIsInstance<LlmContent.AudioBytes>().map { it.bytes }

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import java.net.URL
+import java.security.MessageDigest
+
 plugins {
   alias(libs.plugins.android.application)
   // Note: set apply to true to enable google-services (requires google-services.json).
@@ -63,7 +66,95 @@ android {
     compose = true
     buildConfig = true
   }
+
+  sourceSets {
+    getByName("main") {
+      // libcrane_llm_jni.so (small, ~14 KB) is committed under src/main/jniLibs/arm64-v8a/
+      // directly. liblitert-lm.so (~39 MB) is NOT committed (see downloadLiteRtLmCApi below);
+      // it lands in this build-generated directory instead.
+      jniLibs.srcDir(layout.buildDirectory.dir("craneNativeLibs/jniLibs"))
+    }
+  }
 }
+
+// -----------------------------------------------------------------------------------------
+// Crane: LiteRT-LM v0.16 C-API native library (liblitert-lm.so).
+//
+// This is a ~39 MB prebuilt shared library. Committing it as a plain git blob would bloat a
+// public repo's history permanently, so instead it's downloaded from the pinned upstream
+// GitHub release and sha256-verified at build time. Both hashes below were verified against
+// the actual release asset before pinning:
+//   curl -sL <url> | sha256sum   ->  matches liteRtLmCApiAssetSha256
+//   unzip -p <zip> lib/android_arm64/liblitert-lm.so | sha256sum  ->  matches liteRtLmSoSha256
+val liteRtLmCApiVersion = "v0.16.0"
+val liteRtLmCApiUrl =
+  "https://github.com/google-ai-edge/LiteRT-LM/releases/download/$liteRtLmCApiVersion/litert_lm_c_api-0.1.0.zip"
+val liteRtLmCApiAssetSha256 = "f0f3ae7b5730af783d1f018f7ad9a8de20c25fedf01af4e35fc11d4382246f7d"
+val liteRtLmSoSha256 = "e9cbdddb0f1c693c549e1cde40bf90ad8aaa124d15944d0dd18faaf016dd6938"
+
+fun sha256(file: File): String {
+  val digest = MessageDigest.getInstance("SHA-256")
+  file.inputStream().use { input ->
+    val buf = ByteArray(1 shl 16)
+    while (true) {
+      val n = input.read(buf)
+      if (n < 0) break
+      digest.update(buf, 0, n)
+    }
+  }
+  return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+val downloadLiteRtLmCApi by tasks.registering {
+  description =
+    "Downloads + sha256-verifies the pinned LiteRT-LM $liteRtLmCApiVersion C-API release and " +
+      "extracts liblitert-lm.so (android_arm64) into jniLibs."
+  val zipFile = layout.buildDirectory.file("craneNativeLibs/litert_lm_c_api-0.1.0.zip")
+  val outSo = layout.buildDirectory.file("craneNativeLibs/jniLibs/arm64-v8a/liblitert-lm.so")
+  outputs.file(outSo)
+
+  doLast {
+    val so = outSo.get().asFile
+    if (so.exists() && sha256(so) == liteRtLmSoSha256) {
+      logger.lifecycle("Crane: liblitert-lm.so already present and sha256-verified, skipping download")
+      return@doLast
+    }
+
+    val zip = zipFile.get().asFile
+    zip.parentFile.mkdirs()
+    logger.lifecycle("Crane: downloading LiteRT-LM C-API $liteRtLmCApiVersion from $liteRtLmCApiUrl")
+    URL(liteRtLmCApiUrl).openStream().use { input -> zip.outputStream().use { output -> input.copyTo(output) } }
+
+    val actualZipSha = sha256(zip)
+    check(actualZipSha == liteRtLmCApiAssetSha256) {
+      "litert_lm_c_api-0.1.0.zip sha256 mismatch: expected $liteRtLmCApiAssetSha256, got " +
+        "$actualZipSha. Refusing to use a native library that doesn't match the pinned release."
+    }
+
+    so.parentFile.mkdirs()
+    copy {
+      from(zipTree(zip)) { include("lib/android_arm64/liblitert-lm.so") }
+      into(layout.buildDirectory.dir("craneNativeLibs/_extract"))
+    }
+    layout.buildDirectory
+      .file("craneNativeLibs/_extract/lib/android_arm64/liblitert-lm.so")
+      .get()
+      .asFile
+      .copyTo(so, overwrite = true)
+
+    val actualSoSha = sha256(so)
+    check(actualSoSha == liteRtLmSoSha256) {
+      "liblitert-lm.so sha256 mismatch after extraction: expected $liteRtLmSoSha256, got $actualSoSha."
+    }
+    logger.lifecycle("Crane: liblitert-lm.so verified (sha256=$actualSoSha)")
+  }
+}
+
+tasks.named("preBuild") { dependsOn(downloadLiteRtLmCApi) }
+
+// Belt-and-suspenders: the merge*JniLibFolders tasks are what actually read jniLibs.srcDirs,
+// so make sure they explicitly wait on the download too (not just preBuild ordering).
+tasks.matching { it.name.contains("JniLibFolders") }.configureEach { dependsOn(downloadLiteRtLmCApi) }
 
 dependencies {
   implementation(project(":shared"))
