@@ -360,6 +360,17 @@ class IosModelManagerActions(
         val activeTasks = tasks.filter { it.models.isNotEmpty() }
         val tasksByCategory = activeTasks.groupBy { it.category.id }
 
+        // Task.index defaults to -1 and TaskIcon picks its background via `task.index %
+        // SHAPES.size`. Kotlin's % keeps the sign, so an unset index indexes SHAPES[-1] and
+        // throws ArrayIndexOutOfBoundsException the moment a TaskCard composes — which is every
+        // task on the home screen. Android assigns this in ModelManagerViewModel; iOS never
+        // did, so do it here, per category, exactly as Android does.
+        for (tasksInCategory in tasksByCategory.values) {
+          for ((index, task) in tasksInCategory.withIndex()) {
+            task.index = index
+          }
+        }
+
         // Initialize download status — check for already-downloaded models.
         val basePath = platformContext.getAppFilesDirectory()
         val downloadStatus = mutableMapOf<String, ModelDownloadStatus>()
