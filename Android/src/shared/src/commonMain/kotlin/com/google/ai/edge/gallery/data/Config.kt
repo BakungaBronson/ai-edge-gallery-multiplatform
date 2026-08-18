@@ -73,6 +73,14 @@ object ConfigKeys {
   val PREFILL_TOKENS = ConfigKey("prefill_tokens", "Prefill tokens")
   val DECODE_TOKENS = ConfigKey("decode_tokens", "Decode tokens")
   val NUMBER_OF_RUNS = ConfigKey("number_of_runs", "Number of runs")
+
+  // Crane decoding guards + system prompt (applied via the LiteRT-LM C-API). Keys only for now
+  // — no settings-sheet row yet (that lands with the TEXT_INPUT editor in crane/settings-ui), so
+  // these always resolve to their hardcoded defaults below until that PR wires them into
+  // createLlmChatConfigs.
+  val REPETITION_PENALTY = ConfigKey("repetition_penalty", "Repetition penalty")
+  val NO_REPEAT_NGRAM = ConfigKey("no_repeat_ngram", "No-repeat n-gram size")
+  val SYSTEM_PROMPT = ConfigKey("system_prompt", "System prompt")
 }
 
 /**
