@@ -18,33 +18,62 @@ import CLiteRTLM
 import Foundation
 import shared
 
+/// How long teardown waits for a cancelled stream to deliver its terminal chunk before giving up
+/// on it. `litert_lm_conversation_cancel_process` documents no contract about firing the callback,
+/// so this cannot be an unbounded wait.
+private let streamCancelTimeout: TimeInterval = 5
+
+/// Upper bound on the blocking `sendMessage` path. Generation on CPU is slow, so this is generous,
+/// but it must be finite: the caller may be on the main thread, where an unbounded wait is an
+/// unrecoverable UI freeze.
+private let syncSendTimeout: TimeInterval = 300
+
 /// Swift bridge to the LiteRT-LM v0.16 C-API (`CLiteRTLM.xcframework`), the iOS counterpart of
 /// Android's `crane_llm_jni.c` + `CraneLlm.kt`.
 ///
 /// Android needs a C shim because the JVM cannot call C directly; Swift can, so this file *is*
 /// the shim — same layer, same responsibilities, one language over. It applies the Crane
 /// decoding guards per-send (`repetition_penalty` + `no_repeat_ngram`) and the system prompt
-/// template-safely at conversation creation, which is what the MediaPipe delegate it replaces
-/// could not do.
+/// template-safely at conversation creation.
 ///
 /// Mirrors `crane_llm_jni.c` configuration exactly:
 ///   - CPU backend, benchmark enabled
 ///   - system message applied via conversation config (template-safe)
 ///   - per-turn optional args: max_output_tokens + repetition_penalty + no_repeat_ngram
 ///
-/// The xcframework is not committed: `:shared`'s `downloadCLiteRtLmXcframework` Gradle task
-/// fetches and sha256-verifies the pinned v0.16.0 release asset at build time, mirroring
-/// `:app`'s `downloadLiteRtLmCApi`.
+/// ## Lifetime rules, and why they are stricter than the JNI original
+///
+/// `conversation.h` documents no ownership contract for `send_message_stream`'s arguments, no
+/// promise that `cancel_process` delivers a terminal chunk, and no promise that
+/// `conversation_delete` drains an in-flight stream. Every rule below assumes the conservative
+/// reading of each of those silences.
+///
+/// `crane_llm_jni.c` is immune to most of this by construction: it blocks on a condvar until the
+/// final chunk, so its stack-allocated context and locals necessarily outlive the stream. This
+/// bridge returns immediately, which converts that implicit safety into an explicit heap
+/// lifetime — and every teardown path has to earn it back.
 final class CraneLlmDelegate: IosLlmDelegate {
 
     /// Guarded by `engineLock`. Read from the conversation path, written from `workQueue`.
     private var engine: OpaquePointer?
     private let engineLock = NSLock()
 
-    /// Serialises engine create/destroy. Model loading takes seconds to minutes for a
-    /// multi-GB bundle, so it must not run on whatever thread Kotlin called us from — and
-    /// ordering create-after-destroy matters when a screen is re-entered quickly.
+    /// Conversations created from the current engine, held weakly. A conversation holds a handle
+    /// that the engine owns, so every one of these must be closed *before* the engine is deleted
+    /// or the next send dereferences a freed engine.
+    private let liveConversations = NSHashTable<CraneLlmConversation>.weakObjects()
+    private let registryLock = NSLock()
+
+    /// Serialises engine create/destroy. Model loading takes seconds to minutes for a multi-GB
+    /// bundle, so it must not run on whatever thread Kotlin called us from — and ordering
+    /// create-after-destroy matters when a screen is re-entered quickly.
     private let workQueue = DispatchQueue(label: "com.google.ai.edge.gallery.crane-llm")
+
+    deinit {
+        // Without this, dropping the delegate without calling close() strands a 1–4 GB model in
+        // memory for the process lifetime, which on iOS means a jetsam kill rather than a leak.
+        teardownEngine(replacementEngine: nil)
+    }
 
     func initialize(
         modelPath: String,
@@ -53,10 +82,19 @@ final class CraneLlmDelegate: IosLlmDelegate {
         cacheDir: String?,
         onDone: @escaping (String) -> Void
     ) {
-        workQueue.async { [weak self] in
-            guard let self else { return }
+        // Kotlin publishes this into Compose-observed state, so report on main like the send
+        // callbacks do rather than from workQueue.
+        let report: (String) -> Void = { msg in DispatchQueue.main.async { onDone(msg) } }
 
-            self.replaceEngine(with: nil)
+        workQueue.async { [weak self] in
+            guard let self else {
+                // The delegate died mid-load. Resume the Kotlin side rather than leaving its
+                // continuation hanging forever.
+                report("LLM delegate was released before initialization completed")
+                return
+            }
+
+            self.teardownEngine(replacementEngine: nil)
 
             // The C-API path is CPU-only, same as the Android Crane engine — a GPU request is
             // honoured as CPU rather than failing, and said so out loud.
@@ -65,12 +103,12 @@ final class CraneLlmDelegate: IosLlmDelegate {
             }
 
             guard FileManager.default.fileExists(atPath: modelPath) else {
-                onDone("Model file not found: \(modelPath)")
+                report("Model file not found: \(modelPath)")
                 return
             }
 
             guard let settings = litert_lm_engine_settings_create(modelPath, "cpu", nil, nil) else {
-                onDone("Failed to create engine settings for \(modelPath)")
+                report("Failed to create engine settings for \(modelPath)")
                 return
             }
             litert_lm_engine_settings_enable_benchmark(settings)
@@ -79,12 +117,14 @@ final class CraneLlmDelegate: IosLlmDelegate {
             litert_lm_engine_settings_delete(settings)
 
             guard let created else {
-                onDone("Failed to load model: \(modelPath)")
+                report("Failed to load model: \(modelPath)")
                 return
             }
-            self.replaceEngine(with: created)
+            self.engineLock.lock()
+            self.engine = created
+            self.engineLock.unlock()
             NSLog("[CraneLlm] engine created for \(modelPath)")
-            onDone("")
+            report("")
         }
     }
 
@@ -94,10 +134,10 @@ final class CraneLlmDelegate: IosLlmDelegate {
         temperature: Double,
         systemInstruction: String?
     ) -> IosLlmConversationDelegate {
-        // topK/topP/temperature are accepted but not applied, exactly as on Android's C-API
-        // path (crane_llm_jni.c sets no session config either). Keeping the two platforms
-        // identical here is what makes the guards the only variable in the ON/OFF comparison;
-        // the engine's own sampler defaults apply on both.
+        // topK/topP/temperature are accepted but not applied, exactly as on Android's C-API path
+        // (crane_llm_jni.c sets no session config either). The engine's own sampler defaults apply
+        // on both platforms; keeping them identical is what makes the guards the only variable in
+        // the ON/OFF comparison. See the note in the PR about the settings sliders for these.
         guard let engine = currentEngine() else {
             return CraneLlmConversation(conversation: nil, error: "Engine not initialized")
         }
@@ -109,8 +149,8 @@ final class CraneLlmDelegate: IosLlmDelegate {
 
         // The system prompt goes in as a full JSON message so the engine renders it through the
         // model's chat template instead of concatenating it into the user turn. Unlike the
-        // streaming path below, this call consumes the string before returning, so handing it a
-        // Swift String's temporary buffer is safe.
+        // streaming path, this call consumes the string before returning, so a Swift String's
+        // temporary buffer is safe here.
         if let systemInstruction,
            !systemInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let systemJson = Self.jsonMessage(role: "system", content: systemInstruction) {
@@ -120,17 +160,20 @@ final class CraneLlmDelegate: IosLlmDelegate {
         guard let conversation = litert_lm_conversation_create(engine, config) else {
             return CraneLlmConversation(conversation: nil, error: "Failed to create conversation")
         }
-        return CraneLlmConversation(conversation: conversation, error: nil)
+        let wrapper = CraneLlmConversation(conversation: conversation, error: nil)
+        registryLock.lock()
+        liveConversations.add(wrapper)
+        registryLock.unlock()
+        return wrapper
     }
 
     func close() {
-        // Deliberately async, not sync: the model manager calls close() from inside
-        // initialize()'s completion handler when a screen was re-entered mid-load
-        // (Model.cleanUpAfterInit), and that handler already runs on workQueue — a sync hop
-        // would deadlock on itself. The queue is serial, so a close() followed by an
-        // initialize() still tears down before it rebuilds.
+        // Deliberately async, not sync: the model manager calls close() from inside initialize()'s
+        // completion handler when a screen was re-entered mid-load (Model.cleanUpAfterInit), and
+        // that handler runs on workQueue — a sync hop would deadlock on itself. The queue is
+        // serial, so close() followed by initialize() still tears down before it rebuilds.
         workQueue.async { [weak self] in
-            self?.replaceEngine(with: nil)
+            self?.teardownEngine(replacementEngine: nil)
         }
     }
 
@@ -140,9 +183,24 @@ final class CraneLlmDelegate: IosLlmDelegate {
         return engine
     }
 
-    /// Swaps the engine pointer under the lock and destroys whatever it replaced. Only ever
-    /// called from `workQueue`, so two creates can't race each other.
-    private func replaceEngine(with new: OpaquePointer?) {
+    /// Closes every conversation created from the current engine, *then* swaps and deletes it.
+    ///
+    /// Order matters: a `LiteRtLmConversation` is owned by the engine that created it, so deleting
+    /// the engine first leaves live conversations holding dangling handles — reachable in exactly
+    /// the re-entered-mid-load case close() describes, where the chat panel still holds a
+    /// conversation while the engine is swapped underneath it.
+    private func teardownEngine(replacementEngine new: OpaquePointer?) {
+        registryLock.lock()
+        let live = liveConversations.allObjects
+        liveConversations.removeAllObjects()
+        registryLock.unlock()
+
+        // Outside registryLock: close() cancels and waits, and must not block conversation
+        // creation on an unrelated thread for the duration.
+        for conversation in live {
+            conversation.close()
+        }
+
         engineLock.lock()
         let old = engine
         engine = new
@@ -163,14 +221,13 @@ final class CraneLlmDelegate: IosLlmDelegate {
 
 /// Per-send state handed to the C callback as `callback_data`.
 ///
-/// Retained across the `send_message_stream` call via `Unmanaged` and released exactly once,
-/// when the stream terminates (final chunk, error chunk, or a failure to start).
+/// Owns the message buffer and the optional args: `send_message_stream` is non-blocking and the
+/// header documents no ownership contract, so the conservative reading is that the C side keeps
+/// reading both for the life of the stream. Freeing them when the send call returns would be a
+/// use-after-free.
 ///
-/// It also *owns* the message buffer and the optional args. `send_message_stream` is
-/// non-blocking and the C API does not copy either one — `crane_llm_jni.c` gets away with stack
-/// heap locals only because it blocks on a condvar until the final chunk before freeing them.
-/// This bridge returns immediately, so the lifetime has to be tied to the stream instead: both
-/// are freed in `deinit`, which runs when the callback releases the context.
+/// The `Unmanaged` retain taken at send time is released by the *conversation*, never by the
+/// callback — see `craneStreamCallback`.
 private final class StreamContext {
     let onToken: (String) -> Void
     let onDone: () -> Void
@@ -180,8 +237,10 @@ private final class StreamContext {
     let messageJson: UnsafeMutablePointer<CChar>?
     let optionalArgs: OpaquePointer?
 
-    /// Serialises the callback thread against the "failed to start" path so the context is
-    /// never released twice.
+    /// Signalled once, when the stream reaches a terminal chunk. Teardown waits on this before
+    /// deleting the conversation.
+    let finishedSignal = DispatchSemaphore(value: 0)
+
     private var finished = false
     private let lock = NSLock()
 
@@ -204,6 +263,12 @@ private final class StreamContext {
         if let optionalArgs { litert_lm_conversation_optional_args_delete(optionalArgs) }
     }
 
+    var hasFinished: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return finished
+    }
+
     /// Returns true exactly once, for whoever terminates the stream first.
     func claimFinish() -> Bool {
         lock.lock()
@@ -215,9 +280,18 @@ private final class StreamContext {
 }
 
 /// C callback. Runs on a LiteRT-LM-owned background thread.
+///
+/// Deliberately never releases the context. The header does not say whether a chunk can arrive
+/// after `is_final`, and this function dereferences `callback_data` before it can possibly know
+/// whether the stream is over — so releasing here would leave a window where a late chunk touches
+/// freed memory. Ownership stays with the conversation, which releases it during teardown once the
+/// stream is known to be over.
 private let craneStreamCallback: LiteRtLmStreamCallback = { callbackData, chunk in
     guard let callbackData else { return }
     let ctx = Unmanaged<StreamContext>.fromOpaque(callbackData).takeUnretainedValue()
+
+    // A late chunk after terminal must not re-enter the callbacks.
+    if ctx.hasFinished { return }
 
     let text = litert_lm_stream_chunk_get_text(chunk).map { String(cString: $0) }
     let error = litert_lm_stream_chunk_get_error(chunk).map { String(cString: $0) }
@@ -240,7 +314,7 @@ private let craneStreamCallback: LiteRtLmStreamCallback = { callbackData, chunk 
         } else {
             ctx.onDone()
         }
-        Unmanaged<StreamContext>.fromOpaque(callbackData).release()
+        ctx.finishedSignal.signal()
     }
 }
 
@@ -251,9 +325,18 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
     private let creationError: String?
     private let lock = NSLock()
 
+    /// Retained stream contexts, owned here rather than by the callback. Released only once the
+    /// stream is known to be over.
+    private var streams: [Unmanaged<StreamContext>] = []
+
     init(conversation: OpaquePointer?, error: String?) {
         self.conversation = conversation
         self.creationError = error
+    }
+
+    deinit {
+        // Mirrors the delegate's deinit: a dropped conversation must not strand its native handle.
+        close()
     }
 
     func sendMessageAsync(
@@ -268,8 +351,8 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         onError: @escaping (String) -> Void
     ) {
         // Compose state lives on the main thread, but the C API calls back from its own thread.
-        // Hop every callback to main; DispatchQueue.main.async is FIFO from a single producer,
-        // so token order is preserved.
+        // Hop every callback to main; DispatchQueue.main.async is FIFO from a single producer, so
+        // token order is preserved.
         let mainToken: (String) -> Void = { t in DispatchQueue.main.async { onToken(t) } }
         let mainDone: () -> Void = { DispatchQueue.main.async { onDone() } }
         let mainError: (String) -> Void = { e in DispatchQueue.main.async { onError(e) } }
@@ -301,7 +384,10 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
             onDone: mainDone,
             onError: mainError
         )
-        let ctxPtr = Unmanaged.passRetained(ctx).toOpaque()
+        let retained = Unmanaged.passRetained(ctx)
+        lock.lock()
+        streams.append(retained)
+        lock.unlock()
 
         NSLog(
             "[CraneLlm] send with guards: maxTokens=\(maxOutputTokens) "
@@ -309,14 +395,20 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         )
 
         let rc = litert_lm_conversation_send_message_stream(
-            conversation, ctx.messageJson, nil, ctx.optionalArgs, craneStreamCallback, ctxPtr
+            conversation, ctx.messageJson, nil, ctx.optionalArgs,
+            craneStreamCallback, retained.toOpaque()
         )
 
         if rc != 0 {
-            // Stream never started, so the callback will not fire — release here instead.
+            // The stream never started, so no callback will fire and this context is provably
+            // unreferenced by the C side — safe to drop immediately.
             if ctx.claimFinish() {
+                ctx.finishedSignal.signal()
                 mainError("inference failed to start (rc=\(rc))")
-                Unmanaged<StreamContext>.fromOpaque(ctxPtr).release()
+                lock.lock()
+                streams.removeAll { $0.toOpaque() == retained.toOpaque() }
+                lock.unlock()
+                retained.release()
             }
         }
     }
@@ -338,11 +430,9 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
             return "Failed to encode message"
         }
 
-        // Synchronous variant: accumulate on the callback thread and block until terminal.
-        // No main-queue hop here — that would deadlock if the caller is already on main.
-        let semaphore = DispatchSemaphore(value: 0)
+        // Synchronous variant: accumulate on the callback thread and block until terminal. No
+        // main-queue hop here — that would deadlock if the caller is already on main.
         let buffer = TextAccumulator()
-
         let ctx = StreamContext(
             messageJson: messageBuf,
             optionalArgs: Self.makeOptionalArgs(
@@ -351,22 +441,35 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
                 noRepeatNgramSize: noRepeatNgramSize
             ),
             onToken: { buffer.append($0) },
-            onDone: { semaphore.signal() },
-            onError: { buffer.setError($0); semaphore.signal() }
+            onDone: {},
+            onError: { buffer.setError($0) }
         )
-        let ctxPtr = Unmanaged.passRetained(ctx).toOpaque()
+        let retained = Unmanaged.passRetained(ctx)
+        lock.lock()
+        streams.append(retained)
+        lock.unlock()
 
         let rc = litert_lm_conversation_send_message_stream(
-            conversation, ctx.messageJson, nil, ctx.optionalArgs, craneStreamCallback, ctxPtr
+            conversation, ctx.messageJson, nil, ctx.optionalArgs,
+            craneStreamCallback, retained.toOpaque()
         )
         if rc != 0 {
             if ctx.claimFinish() {
-                Unmanaged<StreamContext>.fromOpaque(ctxPtr).release()
+                ctx.finishedSignal.signal()
+                lock.lock()
+                streams.removeAll { $0.toOpaque() == retained.toOpaque() }
+                lock.unlock()
+                retained.release()
             }
             return "inference failed to start (rc=\(rc))"
         }
 
-        semaphore.wait()
+        // Bounded: this may be called from the main thread, where waiting forever on a stream that
+        // never terminates is an unrecoverable freeze rather than a slow response.
+        if ctx.finishedSignal.wait(timeout: .now() + syncSendTimeout) == .timedOut {
+            litert_lm_conversation_cancel_process(conversation)
+            return "inference timed out after \(Int(syncSendTimeout))s"
+        }
         return buffer.error ?? buffer.text
     }
 
@@ -379,8 +482,39 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         lock.lock()
         let handle = conversation
         conversation = nil
+        let pending = streams
+        streams = []
         lock.unlock()
-        if let handle { litert_lm_conversation_delete(handle) }
+
+        guard let handle else { return }
+
+        // Deleting a conversation with a stream still running is undefined by the header, so cancel
+        // and give each stream a bounded chance to deliver its terminal chunk first. Without this,
+        // navigating back mid-generation would delete the conversation underneath a live stream and
+        // strand the Kotlin callbacks, which never resume.
+        let unfinished = pending.filter { !$0.takeUnretainedValue().hasFinished }
+        if !unfinished.isEmpty {
+            litert_lm_conversation_cancel_process(handle)
+        }
+
+        for stream in pending {
+            let ctx = stream.takeUnretainedValue()
+            if ctx.hasFinished {
+                stream.release()
+                continue
+            }
+            if ctx.finishedSignal.wait(timeout: .now() + streamCancelTimeout) == .timedOut {
+                // The stream never acknowledged the cancel. The C side may still hold this
+                // pointer, so intentionally leak the context (a few KB plus the message buffer)
+                // rather than free memory it could still dereference. Bounded and rare; a
+                // use-after-free would not be.
+                NSLog("[CraneLlm] stream did not terminate within \(Int(streamCancelTimeout))s; leaking its context")
+                continue
+            }
+            stream.release()
+        }
+
+        litert_lm_conversation_delete(handle)
     }
 
     private func currentConversation() -> OpaquePointer? {
@@ -393,7 +527,7 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
     /// <= 0 mean "guard off" and are simply not set — identical semantics to the Android path,
     /// which is what lets the settings-sheet knob turn the guards off.
     ///
-    /// Ownership passes to the StreamContext, which deletes it when the stream ends.
+    /// Ownership passes to the StreamContext, which deletes it in `deinit`.
     private static func makeOptionalArgs(
         maxOutputTokens: Int32,
         repetitionPenalty: Float,
