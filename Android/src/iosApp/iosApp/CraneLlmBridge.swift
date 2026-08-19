@@ -357,6 +357,8 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         let mainDone: () -> Void = { DispatchQueue.main.async { onDone() } }
         let mainError: (String) -> Void = { e in DispatchQueue.main.async { onError(e) } }
 
+        reapFinishedStreams()
+
         if let creationError {
             mainError(creationError)
             return
@@ -421,6 +423,8 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         repetitionPenalty: Float,
         noRepeatNgramSize: Int32
     ) -> String {
+        reapFinishedStreams()
+
         if let creationError { return creationError }
         guard let conversation = currentConversation() else { return "Conversation is closed" }
         warnAboutDroppedContent(imageCount: imageBytes.count, audioCount: audioBytes.count)
@@ -494,6 +498,11 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         // strand the Kotlin callbacks, which never resume.
         let unfinished = pending.filter { !$0.takeUnretainedValue().hasFinished }
         if !unfinished.isEmpty {
+            // deinit calls close(), and deinit runs on whatever thread drops the last reference —
+            // possibly main. So this wait can in principle stall the UI for up to
+            // streamCancelTimeout per stream. Log it so that shows up as an identifiable hitch
+            // rather than an unexplained freeze.
+            NSLog("[CraneLlm] closing with \(unfinished.count) stream(s) still running; cancelling and waiting up to \(Int(streamCancelTimeout))s each")
             litert_lm_conversation_cancel_process(handle)
         }
 
@@ -521,6 +530,29 @@ final class CraneLlmConversation: IosLlmConversationDelegate {
         lock.lock()
         defer { lock.unlock() }
         return conversation
+    }
+
+    /// Releases contexts whose streams have terminated.
+    ///
+    /// Moving ownership off the callback (so a late chunk cannot touch freed memory) means nothing
+    /// frees a context at the moment its stream ends any more. Without this sweep every successful
+    /// send would retain its message buffer and optional args until the conversation closed —
+    /// unbounded growth proportional to turn count, on a device already holding a multi-GB model.
+    ///
+    /// Safe because it releases only where `hasFinished` is already true, which is the same
+    /// condition `close()` relies on, and it runs on a thread we control rather than inside the
+    /// callback. That is what keeps it from reopening the post-final window.
+    private func reapFinishedStreams() {
+        lock.lock()
+        var finished: [Unmanaged<StreamContext>] = []
+        streams.removeAll { stream in
+            guard stream.takeUnretainedValue().hasFinished else { return false }
+            finished.append(stream)
+            return true
+        }
+        lock.unlock()
+        // Released outside the lock: nothing else needs to wait on a deallocation.
+        for stream in finished { stream.release() }
     }
 
     /// Builds the per-send optional args. A repetition penalty of <= 1.0 and an n-gram size of
