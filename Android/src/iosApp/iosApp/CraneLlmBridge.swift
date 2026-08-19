@@ -269,6 +269,24 @@ private final class StreamContext {
         return finished
     }
 
+    /// Records a chunk that arrived after we already saw a terminal one, and reports whether this
+    /// is the first.
+    ///
+    /// `hasFinished` means "we observed a terminal chunk", not "the C side guarantees it will never
+    /// call again" — conversation.h says nothing either way. Every release point therefore still
+    /// dereferences this object in the callback prologue before it can know the stream is over.
+    /// That is as tight as the documented contract allows, so this counter exists to turn the
+    /// assumption into an observation: if it ever fires, the release strategy needs revisiting and
+    /// it is worth reporting upstream.
+    func noteLateChunk() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        lateChunks += 1
+        return lateChunks == 1
+    }
+
+    private var lateChunks = 0
+
     /// Returns true exactly once, for whoever terminates the stream first.
     func claimFinish() -> Bool {
         lock.lock()
@@ -290,8 +308,15 @@ private let craneStreamCallback: LiteRtLmStreamCallback = { callbackData, chunk 
     guard let callbackData else { return }
     let ctx = Unmanaged<StreamContext>.fromOpaque(callbackData).takeUnretainedValue()
 
-    // A late chunk after terminal must not re-enter the callbacks.
-    if ctx.hasFinished { return }
+    // A late chunk after terminal must not re-enter the callbacks. Logged rather than silently
+    // dropped: this is the one assumption the header leaves unverifiable, so if it ever happens in
+    // the field we want to know rather than discover it as a crash.
+    if ctx.hasFinished {
+        if ctx.noteLateChunk() {
+            NSLog("[CraneLlm] WARNING: chunk delivered after terminal chunk — release strategy assumes this cannot happen")
+        }
+        return
+    }
 
     let text = litert_lm_stream_chunk_get_text(chunk).map { String(cString: $0) }
     let error = litert_lm_stream_chunk_get_error(chunk).map { String(cString: $0) }
