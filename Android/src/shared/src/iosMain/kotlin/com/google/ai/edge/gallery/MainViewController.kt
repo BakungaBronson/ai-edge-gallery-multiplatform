@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
 import androidx.navigation.compose.rememberNavController
@@ -32,6 +33,12 @@ fun MainViewController() = ComposeUIViewController {
   val modelManagerActions = remember { koin.get<ModelManagerActions>() }
   val tosActions = remember { koin.get<TosActions>() }
   val screenProvider = remember { koin.get<GalleryScreenProvider>() }
+
+  // Nothing else triggers this on iOS, and ModelManagerUiState.loadingModelAllowlist starts
+  // true — so without this the app sits on "Loading model list..." forever and no model is ever
+  // reachable. Android does the same thing from MainActivity.onCreate; this is the iOS
+  // equivalent entry point.
+  LaunchedEffect(Unit) { modelManagerActions.loadModelAllowlist() }
 
   GalleryTheme {
     val navController = rememberNavController()

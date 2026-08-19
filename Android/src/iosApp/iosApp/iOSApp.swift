@@ -20,8 +20,10 @@ import shared
 @main
 struct iOSApp: App {
     init() {
-        // Initialize Koin DI for iOS with the MediaPipe LLM delegate.
-        let llmDelegate = MediaPipeLlmDelegate()
+        // Initialize Koin DI for iOS with the Crane LiteRT-LM C-API delegate (guards live here).
+        // Note: doInitKoinIos, not initKoinIos — Kotlin/Native prepends "do" to exported
+        // functions whose name starts with "init", which ObjC reserves for constructors.
+        let llmDelegate = CraneLlmDelegate()
         IosModuleKt.doInitKoinIos(llmDelegate: llmDelegate)
     }
 

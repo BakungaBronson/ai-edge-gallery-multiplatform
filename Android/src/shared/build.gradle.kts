@@ -1,3 +1,5 @@
+import java.net.URL
+import java.security.MessageDigest
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -71,6 +73,106 @@ compose.resources {
   publicResClass = true
   packageOfResClass = "com.google.ai.edge.gallery.shared.resources"
   generateResClass = always
+}
+
+// -----------------------------------------------------------------------------------------
+// Crane: LiteRT-LM v0.16 C-API for Apple platforms (CLiteRTLM.xcframework).
+//
+// The iOS counterpart of `:app`'s downloadLiteRtLmCApi. Same upstream release, same reason for
+// fetching instead of committing: the xcframework is ~88 MB zipped (~130 MB unpacked across the
+// ios-arm64 + ios-arm64-simulator slices), which would permanently bloat a public repo's
+// history. Downloaded from the pinned release and sha256-verified at build time.
+//
+// Verified against the actual release asset before pinning:
+//   gh release download v0.16.0 -R google-ai-edge/LiteRT-LM -p CLiteRTLM.xcframework.zip
+//   shasum -a 256 CLiteRTLM.xcframework.zip  ->  matches cLiteRtLmXcframeworkSha256
+//
+// The asset ships arm64 slices only (device + simulator); there is no x86_64 simulator slice,
+// which is why Swift — not Kotlin/Native cinterop — links it. `iosX64()` stays buildable
+// because the Kotlin side never references the library; the guards cross into Swift through the
+// IosLlmConversationDelegate seam. See Android/src/iosApp/iosApp/CraneLlmBridge.swift.
+val cLiteRtLmVersion = "v0.16.0"
+val cLiteRtLmXcframeworkUrl =
+  "https://github.com/google-ai-edge/LiteRT-LM/releases/download/$cLiteRtLmVersion/CLiteRTLM.xcframework.zip"
+val cLiteRtLmXcframeworkSha256 = "4e0f683da07566ee79c143d2d58d387f77052b0e6a41562c969e5d2728fc9f4b"
+
+fun sha256(file: File): String {
+  val digest = MessageDigest.getInstance("SHA-256")
+  file.inputStream().use { input ->
+    val buf = ByteArray(1 shl 16)
+    while (true) {
+      val n = input.read(buf)
+      if (n < 0) break
+      digest.update(buf, 0, n)
+    }
+  }
+  return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+val downloadCLiteRtLmXcframework by tasks.registering {
+  description =
+    "Downloads + sha256-verifies the pinned LiteRT-LM $cLiteRtLmVersion Apple C-API release and " +
+      "unpacks CLiteRTLM.xcframework for the Xcode build to embed."
+  val zipFile = layout.buildDirectory.file("craneNativeLibs/CLiteRTLM.xcframework.zip")
+  val outDir = layout.buildDirectory.dir("craneNativeLibs/CLiteRTLM.xcframework")
+  // The unpacked framework binaries are the real output; Info.plist is the cheap sentinel that
+  // tells Gradle the unpack completed.
+  outputs.file(layout.buildDirectory.file("craneNativeLibs/CLiteRTLM.xcframework/Info.plist"))
+
+  doLast {
+    val zip = zipFile.get().asFile
+    val marker = outDir.get().asFile.resolve("Info.plist")
+
+    if (!(zip.exists() && sha256(zip) == cLiteRtLmXcframeworkSha256)) {
+      zip.parentFile.mkdirs()
+      logger.lifecycle("Crane: downloading CLiteRTLM.xcframework $cLiteRtLmVersion from $cLiteRtLmXcframeworkUrl")
+      URL(cLiteRtLmXcframeworkUrl).openStream().use { input ->
+        zip.outputStream().use { output -> input.copyTo(output) }
+      }
+      val actualSha = sha256(zip)
+      check(actualSha == cLiteRtLmXcframeworkSha256) {
+        "CLiteRTLM.xcframework.zip sha256 mismatch: expected $cLiteRtLmXcframeworkSha256, got " +
+          "$actualSha. Refusing to use a native library that doesn't match the pinned release."
+      }
+      // Force a re-unpack when the archive changed underneath us.
+      outDir.get().asFile.deleteRecursively()
+    }
+
+    if (marker.exists()) {
+      logger.lifecycle("Crane: CLiteRTLM.xcframework already unpacked, skipping")
+      return@doLast
+    }
+
+    // `copy { from(zipTree(..)) }` loses the executable bit and the framework symlink layout that
+    // codesign needs, so shell out to ditto (the Apple-blessed archive tool, always present on a
+    // machine that can build for iOS at all).
+    val extractDir = layout.buildDirectory.dir("craneNativeLibs/_extract").get().asFile
+    extractDir.deleteRecursively()
+    extractDir.mkdirs()
+    providers
+      .exec {
+        commandLine("ditto", "-x", "-k", zip.absolutePath, extractDir.absolutePath)
+      }
+      .result
+      .get()
+      .assertNormalExitValue()
+
+    val unpacked = extractDir.resolve("CLiteRTLM.xcframework")
+    check(unpacked.isDirectory) {
+      "CLiteRTLM.xcframework.zip did not contain CLiteRTLM.xcframework (found: " +
+        "${extractDir.list()?.joinToString()})"
+    }
+    unpacked.renameTo(outDir.get().asFile)
+    check(marker.exists()) { "CLiteRTLM.xcframework unpacked without an Info.plist" }
+    logger.lifecycle("Crane: CLiteRTLM.xcframework ready at ${outDir.get().asFile}")
+  }
+}
+
+// The Xcode build reaches the framework through the iosApp preBuild script, which runs
+// :shared:embedAndSignAppleFrameworkForXcode. Hang the download off every Apple framework task so
+// the xcframework is on disk before Xcode's "Embed Frameworks" phase looks for it.
+tasks.matching { it.name.contains("AppleFrameworkForXcode") }.configureEach {
+  dependsOn(downloadCLiteRtLmXcframework)
 }
 
 android {

@@ -21,10 +21,28 @@ targets:
       - path: iosApp/LaunchScreen.storyboard
     info:
       path: iosApp/Info.plist
+      properties:
+        # Compose Multiplatform renders above 60 Hz on ProMotion displays; without this key iOS
+        # caps the app at 60 fps and the UI visibly stutters. Declared here rather than only in
+        # Info.plist because `xcodegen generate` rewrites that file from this spec — editing the
+        # plist by hand silently loses the key on the next regeneration (which is how it went
+        # missing when the CLiteRTLM dependency was added).
+        CADisableMinimumFrameDurationOnPhone: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.google.ai.edge.gallery
         INFOPLIST_FILE: iosApp/Info.plist
+    dependencies:
+      # LiteRT-LM v0.16 C API — what CraneLlmBridge.swift drives to apply the decoding guards.
+      # NOT committed: fetched + sha256-verified by :shared's downloadCLiteRtLmXcframework task,
+      # which is why this path points into shared/build. Run
+      #   ./gradlew :shared:downloadCLiteRtLmXcframework
+      # before `xcodegen generate` on a fresh clone, otherwise this path does not exist yet and
+      # the generated project will reference a missing framework. The preBuildScript below
+      # re-runs the fetch on every build, so it self-heals after a `./gradlew clean`.
+      - framework: ../shared/build/craneNativeLibs/CLiteRTLM.xcframework
+        embed: true
+        codeSign: true
     preBuildScripts:
       - name: "Build Shared KMP Framework"
         script: |
